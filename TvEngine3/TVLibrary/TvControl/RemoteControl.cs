@@ -2,42 +2,40 @@
 
 // Copyright (C) 2005-2021 Team MediaPortal
 // http://www.team-mediaportal.com
-// 
+//
 // MediaPortal is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 2 of the License, or
 // (at your option) any later version.
-// 
+//
 // MediaPortal is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
-// 
+//
 // You should have received a copy of the GNU General Public License
 // along with MediaPortal. If not, see <http://www.gnu.org/licenses/>.
 
 #endregion
 
 using System;
-using System.Collections;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
-using System.Runtime.Remoting;
-using System.Runtime.Remoting.Channels;
-using System.Runtime.Remoting.Channels.Tcp;
-using System.Runtime.Serialization.Formatters;
 using System.Threading;
 using System.Linq;
-
+using Grpc.Core;
+using MediaPortal.RemoteApi;
+using TvControl.Grpc;
+using PairingKey = MediaPortal.RemoteApi.ConnectionKey;
 using TvLibrary.Interfaces;
 using TvLibrary.Log;
 
 namespace TvControl
 {
   /// <summary>
-  /// Class which holds the connection with the master tv-server
+  /// Class which holds the connection with the master tv-server (gRPC over TLS, authenticated with an API key)
   /// </summary>
   public class RemoteControl
   {
@@ -50,7 +48,9 @@ namespace TvControl
     private const int MAX_WAIT_FOR_CHANNEL_REGISTRATION = 3600000; //msecs - 1 hour - Almost infinity, but will keep the server from freezing up.
     private const int MAX_WAIT_FOR_CHANNEL_REGISTRATION_MEDIAPORTAL = 10000; //msecs
     private const int MAX_TCP_TIMEOUT = 1000; //msecs
-    private const int REMOTING_PORT = 31456;
+
+    /// <summary>TCP port of the TvControl gRPC endpoint (the former remoting port).</summary>
+    public const int Port = 31456;
 
     #endregion
 
@@ -69,10 +69,10 @@ namespace TvControl
 
     private static bool _firstFailure = true;
     private static bool _isRemotingConnected = false;
-    private static IController _tvControl;
+    private static GrpcControllerClient _tvControl;
     private static IController _tvControlLocal = null;
     private static string _hostName = System.Net.Dns.GetHostName();
-    private static TcpChannel _callbackChannel = null; // callback channel
+    private static PairingKey _connectionKey;
     private static bool _useIncreasedTimeoutForInitialConnection = true;
     private static int _timeout = 0;
     private static object _Padlock = new object();
@@ -96,14 +96,9 @@ namespace TvControl
     public static void RegisterCiMenuCallbacks(CiMenuCallbackSink sink)
     {
       RefreshRemotingConnectionStatus();
-      // Define sink for events
-      RemotingConfiguration.RegisterWellKnownServiceType(
-        typeof (CiMenuCallbackSink),
-        "ServerEvents",
-        WellKnownObjectMode.Singleton);
-
-      // Assign the callback from the server to here
-      _tvControl.OnCiMenu += new CiMenuCallback(sink.FireCiMenuCallback);
+      IController controller = Instance;
+      if (controller != null)
+        controller.OnCiMenu += sink.FireCiMenuCallback;
     }
 
     /// <summary>
@@ -111,8 +106,9 @@ namespace TvControl
     /// </summary>
     public static void UnRegisterCiMenuCallbacks(CiMenuCallbackSink sink)
     {
-      // Assign the callback from the server to here
-      _tvControl.OnCiMenu -= new CiMenuCallback(sink.FireCiMenuCallback);
+      IController controller = Instance;
+      if (controller != null)
+        controller.OnCiMenu -= sink.FireCiMenuCallback;
     }
 
     /// <summary>
@@ -120,13 +116,33 @@ namespace TvControl
     /// </summary>
     public static void Clear()
     {
-      _tvControl = null;
-      _isRemotingConnected = false;
+      lock (_Padlock)
+      {
+        DisposeClient();
+        _isRemotingConnected = false;
+      }
     }
 
     #endregion
 
     #region private static methods
+
+    private static void DisposeClient()
+    {
+      GrpcControllerClient client = _tvControl;
+      _tvControl = null;
+      if (client != null)
+      {
+        try
+        {
+          client.Dispose();
+        }
+        catch (Exception ex)
+        {
+          Log.Debug("RemoteControl: error closing connection - {0}", ex.Message);
+        }
+      }
+    }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
     private static void RefreshRemotingConnectionStatus()
@@ -239,6 +255,15 @@ namespace TvControl
       return false;
     }
 
+    /// <summary>
+    /// Creates the authenticated TLS channel to the server.
+    /// </summary>
+    private static GrpcControllerClient CreateClient(string hostName)
+    {
+      Channel channel = GrpcClientFactory.CreateChannel(hostName, Port, _connectionKey, MAX_WAIT_FOR_SERVER_REMOTING_CONNECTION);
+      return new GrpcControllerClient(channel, () => TimeOut);
+    }
+
     #endregion
 
     #region public properties
@@ -293,14 +318,45 @@ namespace TvControl
           }
 
           Log.Debug("RemoteControl: HostName: Change: '{0}' --> '{1}'", _hostName, value);
-          _tvControl = null;
+          DisposeClient();
           _hostName = value;
         }
       }
     }
 
     /// <summary>
-    /// Gets or sets the Timeout for the channel registration.
+    /// Connection key of the tv-server (API key + pinned CA fingerprint, see <see cref="MediaPortal.RemoteApi.ConnectionKey"/>).
+    /// When not set, the key of a tv-server on this machine is used if the process may read it.
+    /// </summary>
+    public static string ConnectionKey
+    {
+      get
+      {
+        lock (_Padlock)
+        {
+          return _connectionKey == null ? null : _connectionKey.ToString();
+        }
+      }
+      set
+      {
+        lock (_Padlock)
+        {
+          PairingKey key = null;
+          if (!string.IsNullOrWhiteSpace(value) && !PairingKey.TryParse(value, out key))
+          {
+            Log.Error("RemoteControl: ConnectionKey: invalid connection key format.");
+            return;
+          }
+          if (key == null ? _connectionKey == null : _connectionKey != null && key.ToString() == _connectionKey.ToString())
+            return;
+          DisposeClient();
+          _connectionKey = key;
+        }
+      }
+    }
+
+    /// <summary>
+    /// Gets or sets the per call timeout.
     /// </summary>
     /// <value>Timeout in ms.</value>
     public static int TimeOut
@@ -321,85 +377,6 @@ namespace TvControl
       {
         _timeout = value;
       }
-    }
-
-    /// <summary>
-    /// Registers a remoting channel for allowing callback from server to client
-    /// </summary>    
-    private static void RegisterChannel()
-    {
-      try
-      {
-        if (_callbackChannel == null)
-        {
-          Log.Debug("RemoteControl: RegisterChannel first called in Domain {0} for thread {1} with id {2}",
-                    AppDomain.CurrentDomain.FriendlyName, Thread.CurrentThread.Name,
-                    Thread.CurrentThread.ManagedThreadId);
-
-          //turn off customErrors to receive full exception messages
-          RemotingConfiguration.CustomErrorsMode = CustomErrorsModes.Off;
-
-          // Creating a custom formatter for a TcpChannel sink chain.
-          BinaryServerFormatterSinkProvider provider = new BinaryServerFormatterSinkProvider();
-          provider.TypeFilterLevel = TypeFilterLevel.Full; // needed for passing objref!
-          IDictionary channelProperties = new Hashtable();
-          // Creating the IDictionary to set the port on the channel instance.
-          channelProperties.Add("port", 0); // "0" chooses one available port
-          channelProperties.Add("timeout", TimeOut); // An integer that specifies the number of milliseconds to wait before a request times out. 0 or -1 indicates an infinite timeout period.
-
-          // Pass the properties for the port setting and the server provider in the server chain argument. (Client remains null here.)
-          _callbackChannel = new TcpChannel(channelProperties, null, provider);
-          ChannelServices.RegisterChannel(_callbackChannel, false);
-        }
-      }
-      catch (RemotingException) {}
-      catch (System.Net.Sockets.SocketException) {}
-      catch (Exception e)
-      {
-        Log.Error(e.ToString());
-      }
-    }
-
-    private static void ConnectCallback(System.IAsyncResult ar)
-    {
-      TcpClient tcpClient = (TcpClient)ar.AsyncState;
-      try
-      {
-        tcpClient.EndConnect(ar);
-      }
-      catch (Exception)
-      {
-        // EndConnect will throw an exception here if the connection has failed
-        // so we have to catch it or MP will exit with unhandled exception
-      }
-      finally
-      {
-        tcpClient.Close();
-      }
-    }
-
-    private static bool CheckTcpPortMethod2() // Not used for now
-    {
-      IPAddress ipa = (IPAddress)Dns.GetHostAddresses(_hostName)[0];
-
-      try
-      {
-        Socket sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        sock.Connect(ipa, REMOTING_PORT);
-        if (sock.Connected) // Port is in use and connection is successful
-        {
-          Log.Debug("RemoteControl: Port is Closed");
-          _isRemotingConnected = true;
-        }
-        sock.Close();
-
-      }
-      catch (SocketException ex)
-      {
-        Log.Debug("RemoteControl: {0}", (ex.Message));
-        _isRemotingConnected = false;
-      }
-      return _isRemotingConnected;
     }
 
     public static IPAddress GetIP4Addresses()
@@ -433,7 +410,7 @@ namespace TvControl
         IPAddress ip = (IPAddress) GetIP4Addresses();
         if (sock != null)
         {
-          IPEndPoint ipEndPoint = new IPEndPoint(ip, REMOTING_PORT);
+          IPEndPoint ipEndPoint = new IPEndPoint(ip, Port);
 
           _isRemotingConnected = false;
           //time out MAX_TCP_TIMEOUT
@@ -445,7 +422,7 @@ namespace TvControl
           }
         }
       }
-      catch (Exception ex)
+      catch (Exception)
       {
         _isRemotingConnected = false;
       }
@@ -463,7 +440,7 @@ namespace TvControl
             sock.Shutdown(SocketShutdown.Both);
           }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
         }
         finally
@@ -493,7 +470,7 @@ namespace TvControl
         }
 
       }
-      catch (Exception ex)
+      catch (Exception)
       {
 
       }
@@ -509,7 +486,7 @@ namespace TvControl
         testSocket.Connect(ipEndPoint);
 
       }
-      catch (Exception ex)
+      catch (Exception)
       {
 
       }
@@ -518,12 +495,12 @@ namespace TvControl
     /// <summary>
     /// returns an the <see cref="T:TvControl.IController"/> interface to the tv server
     /// </summary>
-    /// <value>The instance.</value>    
+    /// <value>The instance.</value>
     public static IController Instance
     {
       get
       {
-        //Used for internal service operation as we have one server only. There is no need to use remoting.
+        //Used for internal service operation as we have one server only. There is no need to go through the network.
         if (_tvControlLocal != null)
           return _tvControlLocal;
 
@@ -546,64 +523,23 @@ namespace TvControl
 
             Log.Debug("RemoteControl: Instance: Creating TvControl to host: '{0}'", _hostName);
 
-            // register remoting channel
-            RegisterChannel();
-
-            _tvControl =
-              (IController)
-              Activator.GetObject(typeof(IController),
-                                  String.Format("tcp://{0}:{1}/TvControl", _hostName, REMOTING_PORT));
+            _tvControl = CreateClient(_hostName);
 
             //only query state if the caller has subcribed to the disconnect/connect events
             if (OnRemotingDisconnected != null || OnRemotingConnected != null)
             {
-              //StartConnectionMonitorThread();
-
               RefreshRemotingConnectionStatus();
               if (!_isRemotingConnected)
                 return null;
             }
 
             Log.Debug("RemoteControl: Instance: Created.", _hostName);
-
-            //Log.Debug("RemoteControl: Instance: Stack:\r\n{0}", new StackTrace());
             return _tvControl;
-          }
-          catch (RemotingTimeoutException exrt)
-          {
-            try
-            {
-              Log.Error("RemoteControl: Timeout getting server Instance; retrying in 5 seconds - {0}", exrt.Message);
-              // maybe the DB wasn't up yet - 2nd try...
-              Thread.Sleep(5000);
-
-              // register remoting channel
-              RegisterChannel();
-
-              _tvControl =
-                (IController)
-                Activator.GetObject(typeof(IController),
-                                    String.Format("tcp://{0}:{1}/TvControl", _hostName, REMOTING_PORT));
-
-              //only query state if the caller has subcribed to the disconnect/connect events
-              if (OnRemotingDisconnected != null || OnRemotingConnected != null)
-              {
-                RefreshRemotingConnectionStatus();
-                if (!_isRemotingConnected)
-                  return null;
-              }
-
-              return _tvControl;
-            }
-            // didn't help - do nothing
-            catch (Exception ex)
-            {
-              Log.Error("RemoteControl: Error getting server Instance - {0}", ex.Message);
-            }
           }
           catch (Exception exg)
           {
             Log.Error("RemoteControl: Error getting server Instance - {0}", exg.Message);
+            DisposeClient();
           }
 
           return null;
@@ -612,7 +548,7 @@ namespace TvControl
     }
 
     /// <summary>
-    /// Set local service instance of IController. Used for internal service operation as we have one server only. There is no need to use remoting.
+    /// Set local service instance of IController. Used for internal service operation as we have one server only. There is no need to go through the network.
     /// </summary>
     public static IController InstanceLocal
     {

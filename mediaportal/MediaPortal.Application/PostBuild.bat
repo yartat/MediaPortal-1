@@ -37,6 +37,14 @@ xcopy %1\databases\bin\%2\databases.* . /Y /D
 REM Common Utils
 xcopy %1\..\Common-MP-TVE3\Common.Utils\bin\%2\Common.Utils.* . /Y /D
 
+REM gRPC connection to the TV server (Configuration, WatchDog, PowerScheduler and TV client plugins)
+xcopy %1\..\Common-MP-TVE3\RemoteApi\bin\%2\MediaPortal.RemoteApi.* . /Y /D
+xcopy %1\..\Common-MP-TVE3\RemoteApi\bin\%2\Grpc.Core.dll . /Y /D
+xcopy %1\..\Common-MP-TVE3\RemoteApi\bin\%2\Grpc.Core.Api.dll . /Y /D
+xcopy %1\..\Common-MP-TVE3\RemoteApi\bin\%2\Google.Protobuf.dll . /Y /D
+xcopy %1\..\Common-MP-TVE3\RemoteApi\bin\%2\grpc_csharp_ext.x86.dll . /Y /D
+xcopy %1\..\Common-MP-TVE3\RemoteApi\bin\%2\grpc_csharp_ext.x64.dll . /Y /D
+
 REM Plugins
 
 REM SubtitlePlugin

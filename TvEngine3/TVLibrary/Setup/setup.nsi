@@ -577,10 +577,21 @@ ${MementoSection} "MediaPortal TV Server" SecServer
   File "${git_Common_MP_TVE3}\WatchDogService.Interface\bin\${BUILD_TYPE}\WatchDogService.Interface.dll"
   File "${git_TVServer}\WatchDogService\bin\${BUILD_TYPE}\WatchDogService.exe"
 
+  ; gRPC remote API (TLS + API key; replaces .NET Remoting)
+  File "${git_Common_MP_TVE3}\RemoteApi\bin\${BUILD_TYPE}\MediaPortal.RemoteApi.dll"
+  File "${git_ROOT}\Packages\Grpc.Core.2.46.6\lib\net45\Grpc.Core.dll"
+  File "${git_ROOT}\Packages\Grpc.Core.Api.2.46.6\lib\net45\Grpc.Core.Api.dll"
+  File "${git_ROOT}\Packages\Google.Protobuf.3.36.2\lib\netstandard2.0\Google.Protobuf.dll"
+  File "${git_ROOT}\Packages\Grpc.Core.2.46.6\runtimes\win-x86\native\grpc_csharp_ext.x86.dll"
+  File "${git_ROOT}\Packages\Grpc.Core.2.46.6\runtimes\win-x64\native\grpc_csharp_ext.x64.dll"
+
   ; Additional assemblies
   SetOutPath "$INSTDIR"
   File "${git_ROOT}\Packages\System.Runtime.CompilerServices.Unsafe.6.1.2\lib\net462\System.Runtime.CompilerServices.Unsafe.dll"
   File "${git_ROOT}\Packages\System.Threading.Tasks.Extensions.4.6.3\lib\net462\System.Threading.Tasks.Extensions.dll"
+  File "${git_ROOT}\Packages\System.Buffers.4.6.1\lib\net462\System.Buffers.dll"
+  File "${git_ROOT}\Packages\System.Memory.4.6.3\lib\net462\System.Memory.dll"
+  File "${git_ROOT}\Packages\System.Numerics.Vectors.4.6.1\lib\net462\System.Numerics.Vectors.dll"
 
   ; MediaInfo
   SetOutPath "$INSTDIR"
@@ -864,6 +875,17 @@ ${MementoSectionEnd}
   Delete "$INSTDIR\System.Runtime.CompilerServices.Unsafe.dll"
   Delete "$INSTDIR\System.Threading.Tasks.Extensions.dll"
   Delete "$INSTDIR\System.ValueTuple.dll"
+  Delete "$INSTDIR\System.Buffers.dll"
+  Delete "$INSTDIR\System.Memory.dll"
+  Delete "$INSTDIR\System.Numerics.Vectors.dll"
+
+  ; gRPC remote API
+  Delete "$INSTDIR\MediaPortal.RemoteApi.dll"
+  Delete "$INSTDIR\Grpc.Core.dll"
+  Delete "$INSTDIR\Grpc.Core.Api.dll"
+  Delete "$INSTDIR\Google.Protobuf.dll"
+  Delete "$INSTDIR\grpc_csharp_ext.x86.dll"
+  Delete "$INSTDIR\grpc_csharp_ext.x64.dll"
 
   ; protocol implementations for MPIPTVSource.ax
   Delete "$INSTDIR\MPIPTV_FILE.dll"

@@ -272,6 +272,10 @@
     <Reference Include="System.Xml">
       <Name>System.XML</Name>
     </Reference>
+    <ProjectReference Include="..\..\Common-MP-TVE3\RemoteApi\RemoteApi.csproj">
+      <Project>{B6B7D3C2-8E4A-4C5B-9F1D-2A7E5C3B9D41}</Project>
+      <Name>RemoteApi</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\Common-MP-TVE3\Common.Utils\Common.Utils.csproj">
       <Project>{F6EDA1F3-3DCD-43F4-8A90-E32DA70C8227}</Project>
       <Name>Common.Utils</Name>

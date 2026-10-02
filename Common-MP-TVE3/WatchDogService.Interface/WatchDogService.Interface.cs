@@ -18,24 +18,14 @@
 
 #endregion
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.IO;
-
-
 namespace WatchDogService.Interface
 {
-  public interface WatchDogServiceInterface
+  /// <summary>
+  /// The watchdog service contract itself is Grpc\watchdog.proto (generated into WatchDogService.Interface.Proto).
+  /// </summary>
+  public static class WatchDogEndpoint
   {
-    Object ReadLog();
-    string StartTVService();
-    string StopTVService();
-    string ClearTVserverLogs();
-    string ClearWindowsEventLogs();
-    void Reboot();
-    void Shutdown();
-    void PowerOff();
+    /// <summary>TCP port of the watchdog gRPC endpoint.</summary>
+    public const int Port = 9997;
   }
 }

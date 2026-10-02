@@ -42,6 +42,10 @@ namespace SetupTv.Sections
       this.buttonChooseIp = new System.Windows.Forms.Button();
       this.tabControl1 = new System.Windows.Forms.TabControl();
       this.tabPage1 = new System.Windows.Forms.TabPage();
+      this.tabPageClientAccess = new System.Windows.Forms.TabPage();
+      this.labelConnectionKeyInfo = new System.Windows.Forms.Label();
+      this.textBoxConnectionKey = new System.Windows.Forms.TextBox();
+      this.buttonCopyConnectionKey = new System.Windows.Forms.Button();
       this.contextMenuStrip1.SuspendLayout();
       this.tabControl1.SuspendLayout();
       this.tabPage1.SuspendLayout();
@@ -151,6 +155,7 @@ namespace SetupTv.Sections
                   | System.Windows.Forms.AnchorStyles.Left)
                   | System.Windows.Forms.AnchorStyles.Right)));
       this.tabControl1.Controls.Add(this.tabPage1);
+      this.tabControl1.Controls.Add(this.tabPageClientAccess);
       this.tabControl1.Location = new System.Drawing.Point(3, 3);
       this.tabControl1.Name = "tabControl1";
       this.tabControl1.SelectedIndex = 0;
@@ -170,6 +175,52 @@ namespace SetupTv.Sections
       this.tabPage1.TabIndex = 0;
       this.tabPage1.Text = "Servers";
       this.tabPage1.UseVisualStyleBackColor = true;
+      //
+      // tabPageClientAccess
+      //
+      this.tabPageClientAccess.Controls.Add(this.labelConnectionKeyInfo);
+      this.tabPageClientAccess.Controls.Add(this.textBoxConnectionKey);
+      this.tabPageClientAccess.Controls.Add(this.buttonCopyConnectionKey);
+      this.tabPageClientAccess.Location = new System.Drawing.Point(4, 22);
+      this.tabPageClientAccess.Name = "tabPageClientAccess";
+      this.tabPageClientAccess.Padding = new System.Windows.Forms.Padding(3);
+      this.tabPageClientAccess.Size = new System.Drawing.Size(458, 206);
+      this.tabPageClientAccess.TabIndex = 1;
+      this.tabPageClientAccess.Text = "Client access";
+      this.tabPageClientAccess.UseVisualStyleBackColor = true;
+      //
+      // labelConnectionKeyInfo
+      //
+      this.labelConnectionKeyInfo.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+                  | System.Windows.Forms.AnchorStyles.Right)));
+      this.labelConnectionKeyInfo.Location = new System.Drawing.Point(6, 9);
+      this.labelConnectionKeyInfo.Name = "labelConnectionKeyInfo";
+      this.labelConnectionKeyInfo.Size = new System.Drawing.Size(446, 56);
+      this.labelConnectionKeyInfo.TabIndex = 0;
+      this.labelConnectionKeyInfo.Text = "MediaPortal clients and other tools need this connection key to use the TV server. " +
+          "Enter it in MediaPortal Configuration (TV/Radio) on every client. Keep it secret: " +
+          "anybody with the key can control the TV server.";
+      //
+      // textBoxConnectionKey
+      //
+      this.textBoxConnectionKey.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+                  | System.Windows.Forms.AnchorStyles.Right)));
+      this.textBoxConnectionKey.Location = new System.Drawing.Point(6, 70);
+      this.textBoxConnectionKey.Name = "textBoxConnectionKey";
+      this.textBoxConnectionKey.ReadOnly = true;
+      this.textBoxConnectionKey.Size = new System.Drawing.Size(446, 20);
+      this.textBoxConnectionKey.TabIndex = 1;
+      //
+      // buttonCopyConnectionKey
+      //
+      this.buttonCopyConnectionKey.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+      this.buttonCopyConnectionKey.Location = new System.Drawing.Point(377, 96);
+      this.buttonCopyConnectionKey.Name = "buttonCopyConnectionKey";
+      this.buttonCopyConnectionKey.Size = new System.Drawing.Size(75, 23);
+      this.buttonCopyConnectionKey.TabIndex = 2;
+      this.buttonCopyConnectionKey.Text = "Copy";
+      this.buttonCopyConnectionKey.UseVisualStyleBackColor = true;
+      this.buttonCopyConnectionKey.Click += new System.EventHandler(this.buttonCopyConnectionKey_Click);
       // 
       // Servers
       // 
@@ -182,6 +233,8 @@ namespace SetupTv.Sections
       this.contextMenuStrip1.ResumeLayout(false);
       this.tabControl1.ResumeLayout(false);
       this.tabPage1.ResumeLayout(false);
+      this.tabPageClientAccess.ResumeLayout(false);
+      this.tabPageClientAccess.PerformLayout();
       this.ResumeLayout(false);
 
     }
@@ -197,6 +250,10 @@ namespace SetupTv.Sections
     private System.Windows.Forms.ImageList imageList1;
 		private System.Windows.Forms.TabControl tabControl1;
     private System.Windows.Forms.TabPage tabPage1;
+    private System.Windows.Forms.TabPage tabPageClientAccess;
+    private System.Windows.Forms.Label labelConnectionKeyInfo;
+    private System.Windows.Forms.TextBox textBoxConnectionKey;
+    private System.Windows.Forms.Button buttonCopyConnectionKey;
     private System.Windows.Forms.ContextMenuStrip contextMenuStrip1;
     private System.Windows.Forms.ToolStripMenuItem chooseIPForStreamingToolStripMenuItem;
     private System.Windows.Forms.ColumnHeader columnHeader3;

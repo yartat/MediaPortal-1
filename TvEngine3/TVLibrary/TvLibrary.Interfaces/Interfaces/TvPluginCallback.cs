@@ -21,7 +21,6 @@
 using System;
 using System.Text;
 using System.Collections.Generic;
-using System.Runtime.Remoting;
 
 namespace TvLibrary.Interfaces
 {
@@ -36,7 +35,7 @@ namespace TvLibrary.Interfaces
   /// fire events back through these delegates. Overriding OnServerEvent to capture
   /// the callback from the server
   /// </summary>
-  public abstract class CiMenuCallbackSink : MarshalByRefObject
+  public abstract class CiMenuCallbackSink
   {
     /// <summary>
     /// Called by the server to fire the call back to the client
@@ -103,10 +102,9 @@ namespace TvLibrary.Interfaces
 
   /// <summary>
   /// CiMenu class contains all information of a menu
-  /// derived from MarshalByRefObject for passing through remoting
   /// </summary>
   [Serializable]
-  public class CiMenu : MarshalByRefObject
+  public class CiMenu
   {
     #region private vars
 
@@ -242,15 +240,6 @@ namespace TvLibrary.Interfaces
       _answerLength = nAnswerLength;
       _bPassword = bPassword;
       _menuState = CiMenuState.Request;
-    }
-
-    /// <summary>
-    /// override to avoid timeout ?
-    /// </summary>
-    /// <returns></returns>
-    public override object InitializeLifetimeService()
-    {
-      return null;
     }
   }
 }

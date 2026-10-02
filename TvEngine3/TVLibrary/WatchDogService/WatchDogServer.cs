@@ -28,11 +28,10 @@ using System.IO.Compression;
 using System.Diagnostics;
 using System.ServiceProcess;
 using System.Management;
-using WatchDogService.Interface;
 
 namespace WatchDogService
 {
-  public class WatchDogServer : MarshalByRefObject, WatchDogServiceInterface
+  public class WatchDogServer
   {
     public string StartTVService()
     {

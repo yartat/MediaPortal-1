@@ -21,16 +21,12 @@
 #region Usings
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Runtime.Remoting;
-using System.Runtime.Remoting.Channels;
-using System.Runtime.Remoting.Channels.Http;
 using System.Threading;
 using Gentle.Common;
+using MediaPortal.RemoteApi;
 using TvControl;
 using TvDatabase;
 using TvEngine.Interfaces;
@@ -46,7 +42,7 @@ namespace TvEngine.PowerScheduler
   /// <summary>
   /// PowerScheduler Server Plugin: tvservice plugin which controls power management
   /// </summary>
-  public class PowerScheduler : MarshalByRefObject, IPowerScheduler, IPowerController
+  public class PowerScheduler : IPowerScheduler, IPowerController, IClientSessionRegistry
   {
     #region Variables
 
@@ -157,9 +153,9 @@ namespace TvEngine.PowerScheduler
     private PowerSettings _settings;
 
     /// <summary>
-    /// Indicator if remoting has been setup
+    /// gRPC server of the PowerControl service (null when not running)
     /// </summary>
-    private bool _remotingStarted = false;
+    private Grpc.Core.Server _grpcServer;
 
     /// <summary>
     /// Indicator if the TVController should be reinitialized
@@ -236,19 +232,6 @@ namespace TvEngine.PowerScheduler
         }
         return _powerScheduler;
       }
-    }
-
-    #endregion
-
-    #region MarshalByRefObject overrides
-
-    /// <summary>
-    /// Make sure SAO never expires
-    /// </summary>
-    /// <returns></returns>
-    public override object InitializeLifetimeService()
-    {
-      return null;
     }
 
     #endregion
@@ -714,147 +697,29 @@ namespace TvEngine.PowerScheduler
       _powerControllerWakeupHandler.Update(nextWakeupTime, handlerName);
     }
 
-    private int _remoteTags = 0;
-    private Hashtable _localClientStandbyHandlers = new Hashtable();
-    private Hashtable _localClientWakeupHandlers = new Hashtable();
-    private Dictionary<string, int> _localClientStandbyHandlerURIs = new Dictionary<string, int>();
-    private Dictionary<string, int> _localClientWakeupHandlerURIs = new Dictionary<string, int>();
-
     /// <summary>
-    /// Register remote handlers. If an empty string or null is passed, no handler is registered for that type.
+    /// Registers the standby/wakeup handlers of a client's gRPC handler session (single-seat client plugin).
     /// </summary>
-    /// <param name="standbyHandlerURI"></param>
-    /// <param name="wakeupHandlerURI"></param>
-    /// <returns>Returns a tag used to unregister the handler(s)</returns>
     [MethodImpl(MethodImplOptions.Synchronized)]
-    public int RegisterRemote(string standbyHandlerURI, string wakeupHandlerURI)
+    void IClientSessionRegistry.RegisterClientSession(IStandbyHandler standbyHandler, IWakeupHandler wakeupHandler)
     {
-      int oldStandbyTag = 0;
-      int oldWakeupTag = 0;
-      bool registeredHandler = false;
-
-      // Find existing tags
-      if (!string.IsNullOrEmpty(standbyHandlerURI) &&
-          !_localClientStandbyHandlerURIs.TryGetValue(standbyHandlerURI, out oldStandbyTag))
-      {
-        oldStandbyTag = _remoteTags + 1;
-      }
-      if (!string.IsNullOrEmpty(wakeupHandlerURI) &&
-          !_localClientWakeupHandlerURIs.TryGetValue(wakeupHandlerURI, out oldWakeupTag))
-      {
-        oldWakeupTag = _remoteTags + 1;
-      }
-
-      if (oldStandbyTag == 0 && oldWakeupTag == 0)
-        return 0; // No URIs supplied!
-
-      // Determine new registration tag
-      int newTag = 0;
-      if (oldStandbyTag == oldWakeupTag && oldStandbyTag != 0 && oldStandbyTag <= _remoteTags)
-      {
-        newTag = oldStandbyTag;
-      }
-      else if (oldStandbyTag == 0)
-      {
-        newTag = oldWakeupTag;
-      }
-      else if (oldWakeupTag == 0)
-      {
-        newTag = oldStandbyTag;
-      }
-      else
-      {
-        newTag = _remoteTags + 1;
-      }
-
-      // Register handlers
-      Log.Debug("PS: RegisterRemote tag: {0}, uris: {1}, {2}", newTag, standbyHandlerURI, wakeupHandlerURI);
-      if (standbyHandlerURI != null && standbyHandlerURI.Length > 0)
-      {
-        LocalClientStandbyHandler hdl;
-        if (newTag <= _remoteTags)
-        {
-          hdl = (LocalClientStandbyHandler)_localClientStandbyHandlers[oldStandbyTag];
-          _localClientStandbyHandlers.Remove(oldStandbyTag);
-        }
-        else
-        {
-          hdl = new LocalClientStandbyHandler(standbyHandlerURI, newTag);
-          Register(hdl);
-          registeredHandler = true;
-        }
-
-        _localClientStandbyHandlers[newTag] = hdl;
-        _localClientStandbyHandlerURIs[standbyHandlerURI] = newTag;
-      }
-      if (wakeupHandlerURI != null && wakeupHandlerURI.Length > 0)
-      {
-        LocalClientWakeupHandler hdl;
-        if (newTag <= _remoteTags)
-        {
-          hdl = (LocalClientWakeupHandler)_localClientWakeupHandlers[oldWakeupTag];
-          _localClientWakeupHandlers.Remove(oldWakeupTag);
-        }
-        else
-        {
-          hdl = new LocalClientWakeupHandler(wakeupHandlerURI, newTag);
-          Register(hdl);
-          registeredHandler = true;
-        }
-        _localClientWakeupHandlers[newTag] = hdl;
-        _localClientWakeupHandlerURIs[wakeupHandlerURI] = newTag;
-      }
-      if (newTag > _remoteTags)
-        _remoteTags = newTag;
-
-      //Unregister old handlers
-      if (oldStandbyTag != 0 && oldStandbyTag != newTag)
-      {
-        UnregisterRemote(oldStandbyTag);
-      }
-      if (oldWakeupTag != 0 && oldWakeupTag != newTag)
-      {
-        UnregisterRemote(oldWakeupTag);
-      }
-
-      // Trigger StandbWakeupThread
-      if (registeredHandler)
+      Register(standbyHandler);
+      Register(wakeupHandler);
+      if (_standbyWakeupTriggered != null)
       {
         _standbyWakeupTriggered.Set();
-        Log.Debug("PS: RegisterRemote - Triggered StandbyWakeupThread");
+        Log.Debug("PS: RegisterClientSession - Triggered StandbyWakeupThread");
       }
-
-      return newTag;
     }
 
     /// <summary>
-    /// Unregister remote handlers.
+    /// Unregisters the handlers of a closed client handler session.
     /// </summary>
     [MethodImpl(MethodImplOptions.Synchronized)]
-    public void UnregisterRemote(int tag)
+    void IClientSessionRegistry.UnregisterClientSession(IStandbyHandler standbyHandler, IWakeupHandler wakeupHandler)
     {
-      {
-        LocalClientStandbyHandler hdl = (LocalClientStandbyHandler)_localClientStandbyHandlers[tag];
-        if (hdl != null)
-        {
-          _localClientStandbyHandlers.Remove(tag);
-          _localClientStandbyHandlerURIs.Remove(hdl._url);
-          hdl.Close();
-          Log.Debug("PS: UnregisterRemote StandbyHandler {0}", tag);
-          Unregister(hdl);
-        }
-      }
-      {
-        LocalClientWakeupHandler hdl = (LocalClientWakeupHandler)_localClientWakeupHandlers[tag];
-        if (hdl != null)
-        {
-          _localClientWakeupHandlers.Remove(tag);
-          _localClientWakeupHandlerURIs.Remove(hdl._url);
-          hdl.Close();
-          Log.Debug("PS: UnregisterRemote WakeupHandler {0}", tag);
-          Unregister(hdl);
-        }
-      }
+      Unregister(standbyHandler);
+      Unregister(wakeupHandler);
     }
 
     /// <summary>
@@ -912,8 +777,8 @@ namespace TvEngine.PowerScheduler
         // Register power event handler to TVServer
         RegisterPowerEventHandler();
 
-        // Register PowerScheduler as IPowerControl remoting service
-        StartRemoting();
+        // Publish PowerScheduler as gRPC PowerControl service
+        StartGrpc();
 
         // Create the EventWaitHandles for the StandbyWakeupThread and GetCurrentState
         _standbyWakeupTriggered = new EventWaitHandle(false, EventResetMode.AutoReset, "TvEngine.PowerScheduler.StandbyWakeupTriggered");
@@ -978,6 +843,9 @@ namespace TvEngine.PowerScheduler
           _standbyWakeupFinished.Close();
           _standbyWakeupFinished = null;
         }
+
+        // Stop the PowerControl gRPC service
+        StopGrpc();
 
         // Unregister power event handler
         UnRegisterPowerEventHandler();
@@ -1612,29 +1480,36 @@ namespace TvEngine.PowerScheduler
     }
 
     /// <summary>
-    /// Configure remoting for power control from MP
+    /// Publishes the PowerControl gRPC service (TLS + API key) for MP clients
     /// </summary>
-    private void StartRemoting()
+    private void StartGrpc()
     {
-      if (_remotingStarted)
+      if (_grpcServer != null)
         return;
       try
       {
-        ListDictionary channelProperties = new ListDictionary();
-        channelProperties.Add("port", 31457);
-        channelProperties.Add("exclusiveAddressUse", false);
-        HttpChannel channel = new HttpChannel(channelProperties,
-                                              new SoapClientFormatterSinkProvider(),
-                                              new SoapServerFormatterSinkProvider());
-        ChannelServices.RegisterChannel(channel, false);
+        _grpcServer = SecureGrpcServer.Create(RemotePowerControl.Port, GrpcSecurity.LoadOrCreateServerMaterial(),
+                                              message => Log.Error(message),
+                                              Interfaces.Proto.PowerControl.BindService(new PowerControlGrpcService(this, this)));
+        _grpcServer.Start();
+        Log.Debug("PS: Registered PowerScheduler as gRPC PowerControl service on port {0}", RemotePowerControl.Port);
       }
-      catch (RemotingException) { }
-      catch (System.Net.Sockets.SocketException) { }
-      // RemotingConfiguration.RegisterWellKnownServiceType(typeof(PowerScheduler), "PowerControl", WellKnownObjectMode.Singleton);
-      ObjRef objref = RemotingServices.Marshal(this, "PowerControl", typeof(IPowerController));
-      RemotePowerControl.Clear();
-      Log.Debug("PS: Registered PowerScheduler as IPowerControl remoting service");
-      _remotingStarted = true;
+      catch (Exception ex)
+      {
+        _grpcServer = null;
+        Log.Error("PS: Cannot start gRPC PowerControl service: {0}", ex.Message);
+      }
+    }
+
+    /// <summary>
+    /// Stops the PowerControl gRPC service
+    /// </summary>
+    private void StopGrpc()
+    {
+      Grpc.Core.Server server = _grpcServer;
+      _grpcServer = null;
+      if (server != null)
+        server.ShutdownAsync().Wait(5000);
     }
 
     /// <summary>

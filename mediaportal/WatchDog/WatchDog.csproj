@@ -118,7 +118,16 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Deployment" />
     <Reference Include="System.Drawing" />
-    <Reference Include="System.Runtime.Remoting" />
+    <Reference Include="netstandard" />
+    <Reference Include="Google.Protobuf">
+      <HintPath>..\..\Packages\Google.Protobuf.3.36.2\lib\netstandard2.0\Google.Protobuf.dll</HintPath>
+    </Reference>
+    <Reference Include="Grpc.Core">
+      <HintPath>..\..\Packages\Grpc.Core.2.46.6\lib\net45\Grpc.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Grpc.Core.Api">
+      <HintPath>..\..\Packages\Grpc.Core.Api.2.46.6\lib\net45\Grpc.Core.Api.dll</HintPath>
+    </Reference>
     <Reference Include="System.ServiceProcess" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
@@ -190,6 +199,7 @@
       <DesignTime>True</DesignTime>
     </Compile>
     <None Include="app.config" />
+    <None Include="packages.config" />
     <None Include="app.manifest" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
@@ -207,6 +217,10 @@
     <ProjectReference Include="..\..\Common-MP-TVE3\WatchDogService.Interface\WatchDogService.Interface.csproj">
       <Project>{837CE7EA-60D4-4217-8D38-A8B5E6E1DB22}</Project>
       <Name>WatchDogService.Interface</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Common-MP-TVE3\RemoteApi\RemoteApi.csproj">
+      <Project>{B6B7D3C2-8E4A-4C5B-9F1D-2A7E5C3B9D41}</Project>
+      <Name>RemoteApi</Name>
     </ProjectReference>
     <ProjectReference Include="..\Core\Core.csproj">
       <Project>{02FFFC1F-2555-4B99-8B01-3432D0673855}</Project>

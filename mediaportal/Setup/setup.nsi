@@ -614,6 +614,13 @@ Section "MediaPortal core files (required)" SecCore
   ; WatchDog
   File "${git_MP}\WatchDog\bin\${BUILD_TYPE}\WatchDog.exe"
   File "${git_Common_MP_TVE3}\WatchDogService.Interface\bin\${BUILD_TYPE}\WatchDogService.Interface.dll"
+  ; gRPC remote API (TLS + API key; replaces .NET Remoting)
+  File "${git_Common_MP_TVE3}\RemoteApi\bin\${BUILD_TYPE}\MediaPortal.RemoteApi.dll"
+  File "${git_ROOT}\Packages\Grpc.Core.2.46.6\lib\net45\Grpc.Core.dll"
+  File "${git_ROOT}\Packages\Grpc.Core.Api.2.46.6\lib\net45\Grpc.Core.Api.dll"
+  File "${git_ROOT}\Packages\Google.Protobuf.3.36.2\lib\netstandard2.0\Google.Protobuf.dll"
+  File "${git_ROOT}\Packages\Grpc.Core.2.46.6\runtimes\win-x86\native\grpc_csharp_ext.x86.dll"
+  File "${git_ROOT}\Packages\Grpc.Core.2.46.6\runtimes\win-x64\native\grpc_csharp_ext.x64.dll"
   File "${git_MP}\WatchDog\bin\${BUILD_TYPE}\DaggerLib.dll"
   File "${git_MP}\WatchDog\bin\${BUILD_TYPE}\DaggerLib.DSGraphEdit.dll"
   File "${git_MP}\WatchDog\bin\${BUILD_TYPE}\DirectShowLib-2005.dll"
@@ -1006,6 +1013,13 @@ SectionEnd
   ; WatchDog
   Delete "$MPdir.Base\WatchDog.exe"
   Delete "$MPdir.Base\WatchDogService.Interface.dll"
+  ; gRPC remote API
+  Delete "$MPdir.Base\MediaPortal.RemoteApi.dll"
+  Delete "$MPdir.Base\Grpc.Core.dll"
+  Delete "$MPdir.Base\Grpc.Core.Api.dll"
+  Delete "$MPdir.Base\Google.Protobuf.dll"
+  Delete "$MPdir.Base\grpc_csharp_ext.x86.dll"
+  Delete "$MPdir.Base\grpc_csharp_ext.x64.dll"
   Delete "$MPdir.Base\DaggerLib.dll"
   Delete "$MPdir.Base\DaggerLib.DSGraphEdit.dll"
   Delete "$MPdir.Base\DirectShowLib-2005.dll"

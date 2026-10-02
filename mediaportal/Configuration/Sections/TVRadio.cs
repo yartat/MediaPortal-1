@@ -33,6 +33,7 @@ using System.Windows.Forms;
 using System.Xml;
 using MediaPortal.GUI.Library;
 using MediaPortal.Profile;
+using MediaPortal.RemoteApi;
 using MediaPortal.UserInterface.Controls;
 using MediaPortal.Util;
 
@@ -82,6 +83,19 @@ namespace MediaPortal.Configuration.Sections
     {
       using (Settings xmlreader = new MPSettings())
       {
+        // Connection key of the TV server; for a TV server on this machine it is taken over automatically
+        // (before the hostname: changing the key resets the hostname verification)
+        mpTextBoxConnectionKey.Text = xmlreader.GetValueAsString("tvservice", "connectionkey", string.Empty);
+        if (string.IsNullOrEmpty(mpTextBoxConnectionKey.Text))
+        {
+          ServerKeyMaterial local = GrpcSecurity.TryReadLocalMaterial();
+          if (local != null)
+          {
+            mpTextBoxConnectionKey.Text = local.ConnectionKey.ToString();
+            Log.Debug("LoadSettings: took over the connection key of the local TV server");
+          }
+        }
+
         // Get hostname entry
         _settingsHostname = xmlreader.GetValueAsString("tvservice", "hostname", string.Empty);
         if (string.IsNullOrEmpty(_settingsHostname))
@@ -144,6 +158,7 @@ namespace MediaPortal.Configuration.Sections
           _verifiedHostname = string.Empty;
         }
 
+        xmlwriter.SetValue("tvservice", "connectionkey", mpTextBoxConnectionKey.Text.Trim());
         xmlwriter.SetValueAsBool("tvservice", "isWakeOnLanEnabled", mpCheckBoxIsWakeOnLanEnabled.Checked);
         xmlwriter.SetValue("tvservice", "WOLTimeOut", mpNumericTextBoxWOLTimeOut.Text);
         xmlwriter.SetValueAsBool("tvservice", "isAutoMacAddressEnabled", mpCheckBoxIsAutoMacAddressEnabled.Checked);
@@ -171,6 +186,8 @@ namespace MediaPortal.Configuration.Sections
     private MPTextBox mpTextBoxHostname;
     private MPComboBox mpComboBoxHostname;
     private MPLabel mpLabel3;
+    private MPLabel mpLabelConnectionKey;
+    private MPTextBox mpTextBoxConnectionKey;
     private MPGroupBox mpGroupBox900;
     private MPNumericTextBox mpNumericTextBoxWOLTimeOut;
     private MPLabel mpLabelWOLTimeOut;
@@ -190,6 +207,8 @@ namespace MediaPortal.Configuration.Sections
       this.mpTextBoxHostname = new MediaPortal.UserInterface.Controls.MPTextBox();
       this.mpButtonTestConnection = new MediaPortal.UserInterface.Controls.MPButton();
       this.mpLabel3 = new MediaPortal.UserInterface.Controls.MPLabel();
+      this.mpLabelConnectionKey = new MediaPortal.UserInterface.Controls.MPLabel();
+      this.mpTextBoxConnectionKey = new MediaPortal.UserInterface.Controls.MPTextBox();
       this.mpComboBoxHostname = new MediaPortal.UserInterface.Controls.MPComboBox();
       this.mpGroupBox900 = new MediaPortal.UserInterface.Controls.MPGroupBox();
       this.mpNumericTextBoxWOLTimeOut = new MediaPortal.UserInterface.Controls.MPNumericTextBox();
@@ -218,10 +237,12 @@ namespace MediaPortal.Configuration.Sections
       this.mpGroupBox2.Controls.Add(this.mpButtonTestConnection);
       this.mpGroupBox2.Controls.Add(this.mpLabel3);
       this.mpGroupBox2.Controls.Add(this.mpComboBoxHostname);
+      this.mpGroupBox2.Controls.Add(this.mpLabelConnectionKey);
+      this.mpGroupBox2.Controls.Add(this.mpTextBoxConnectionKey);
       this.mpGroupBox2.FlatStyle = System.Windows.Forms.FlatStyle.Popup;
       this.mpGroupBox2.Location = new System.Drawing.Point(6, 0);
       this.mpGroupBox2.Name = "mpGroupBox2";
-      this.mpGroupBox2.Size = new System.Drawing.Size(462, 53);
+      this.mpGroupBox2.Size = new System.Drawing.Size(462, 82);
       this.mpGroupBox2.TabIndex = 17;
       this.mpGroupBox2.TabStop = false;
       this.mpGroupBox2.Text = "TV-Server";
@@ -257,6 +278,24 @@ namespace MediaPortal.Configuration.Sections
       this.mpLabel3.Size = new System.Drawing.Size(58, 13);
       this.mpLabel3.TabIndex = 5;
       this.mpLabel3.Text = "Hostname:";
+      //
+      // mpLabelConnectionKey
+      //
+      this.mpLabelConnectionKey.AutoSize = true;
+      this.mpLabelConnectionKey.Location = new System.Drawing.Point(19, 55);
+      this.mpLabelConnectionKey.Name = "mpLabelConnectionKey";
+      this.mpLabelConnectionKey.Size = new System.Drawing.Size(82, 13);
+      this.mpLabelConnectionKey.TabIndex = 6;
+      this.mpLabelConnectionKey.Text = "Connection key:";
+      //
+      // mpTextBoxConnectionKey
+      //
+      this.mpTextBoxConnectionKey.BorderColor = System.Drawing.Color.Empty;
+      this.mpTextBoxConnectionKey.Location = new System.Drawing.Point(126, 52);
+      this.mpTextBoxConnectionKey.Name = "mpTextBoxConnectionKey";
+      this.mpTextBoxConnectionKey.Size = new System.Drawing.Size(330, 20);
+      this.mpTextBoxConnectionKey.TabIndex = 4;
+      this.mpTextBoxConnectionKey.TextChanged += new System.EventHandler(this.mpTextBoxConnectionKey_TextChanged);
       // 
       // mpComboBoxHostname
       // 
@@ -279,7 +318,7 @@ namespace MediaPortal.Configuration.Sections
       this.mpGroupBox900.Controls.Add(this.mpCheckBoxIsAutoMacAddressEnabled);
       this.mpGroupBox900.Controls.Add(this.mpCheckBoxIsWakeOnLanEnabled);
       this.mpGroupBox900.FlatStyle = System.Windows.Forms.FlatStyle.Popup;
-      this.mpGroupBox900.Location = new System.Drawing.Point(6, 59);
+      this.mpGroupBox900.Location = new System.Drawing.Point(6, 88);
       this.mpGroupBox900.Name = "mpGroupBox900";
       this.mpGroupBox900.Size = new System.Drawing.Size(462, 126);
       this.mpGroupBox900.TabIndex = 18;
@@ -401,7 +440,18 @@ namespace MediaPortal.Configuration.Sections
         return false;
       }
 
-      // Set the hostname of the TV server
+      // Set the connection key and the hostname of the TV server
+      string connectionKey = mpTextBoxConnectionKey.Text.Trim();
+      ConnectionKey parsedKey;
+      if (connectionKey.Length > 0 && !ConnectionKey.TryParse(connectionKey, out parsedKey))
+      {
+        Log.Debug("VerifyHostname: invalid connection key");
+        if (verbose)
+          MessageBox.Show("The connection key is invalid. Copy it from TV-Server Configuration (SetupTv).",
+            "TV/Radio Settings", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+        return false;
+      }
+      TvServerRemote.ConnectionKey = connectionKey;
       TvServerRemote.HostName = hostname;
 
       // Get the database connection string from the TV server
@@ -704,6 +754,12 @@ namespace MediaPortal.Configuration.Sections
         MessageBox.Show("Connection to the TV server successful",
           "TV/Radio Settings", MessageBoxButtons.OK, MessageBoxIcon.None);
       }
+    }
+
+    private void mpTextBoxConnectionKey_TextChanged(object sender, EventArgs e)
+    {
+      // A different key needs a new connection test
+      mpTextBoxHostname_TextChanged(sender, e);
     }
 
     private void mpTextBoxHostname_TextChanged(object sender, EventArgs e)

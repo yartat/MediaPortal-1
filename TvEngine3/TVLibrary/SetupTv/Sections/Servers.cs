@@ -21,6 +21,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
+using MediaPortal.RemoteApi;
 using TvControl;
 using TvDatabase;
 
@@ -56,6 +57,18 @@ namespace SetupTv.Sections
         item.Tag = server;
       }
       mpListView1.AutoResizeColumns(ColumnHeaderAutoResizeStyle.HeaderSize);
+
+      // Connection key for clients (created by the TV service on its first start)
+      ServerKeyMaterial material = GrpcSecurity.TryReadLocalMaterial();
+      textBoxConnectionKey.Text = material != null
+                                    ? material.ConnectionKey.ToString()
+                                    : "Not available - start the TV service once on this computer.";
+      buttonCopyConnectionKey.Enabled = material != null;
+    }
+
+    private void buttonCopyConnectionKey_Click(object sender, EventArgs e)
+    {
+      Clipboard.SetText(textBoxConnectionKey.Text);
     }
 
     private void Servers_Load(object sender, EventArgs e) {}

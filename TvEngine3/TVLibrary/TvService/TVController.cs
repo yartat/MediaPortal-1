@@ -49,7 +49,7 @@ namespace TvService
   /// and if server is the master it will delegate the requests to the 
   /// correct slave servers
   /// </summary>
-  public class TVController : MarshalByRefObject, IController, IDeviceEventListener, IDisposable, ITvServerEvent, IEpgEvents, ICiMenuCallbacks
+  public class TVController : IController, IDeviceEventListener, IDisposable, ITvServerEvent, IEpgEvents, ICiMenuCallbacks
   {
     #region constants
 
@@ -636,15 +636,6 @@ namespace TvService
       heartBeatMonitorThread.IsBackground = true;
       heartBeatMonitorThread.Start();
     }
-
-    #region MarshalByRefObject overrides
-
-    public override object InitializeLifetimeService()
-    {
-      return null;
-    }
-
-    #endregion
 
     #region IDisposable Members
 

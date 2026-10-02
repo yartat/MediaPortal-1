@@ -30,7 +30,6 @@ using System.Net;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Runtime.Remoting;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.ServiceProcess;
@@ -46,6 +45,7 @@ using TvEngine;
 using TvEngine.Interfaces;
 using TvLibrary.Interfaces;
 using TvLibrary.Log;
+using TvService.GrpcApi;
 
 namespace TvService
 {
@@ -386,6 +386,7 @@ namespace TvService
     private EventWaitHandle _InitializedEvent;
     private static bool _started;
     private TVController _controller;
+    private GrpcServerHost _grpcHost;
     private readonly List<PowerEventHandler> _powerEventHandlers;
     private PluginLoader _plugins;
     private List<ITvServerPlugin> _pluginsStarted = new List<ITvServerPlugin>();
@@ -419,17 +420,6 @@ namespace TvService
         {
           Log.Info("{0} was not created", RemoteControl.InitializedEventName);
         }
-      }
-      catch (Exception ex)
-      {
-        Log.Write(ex);
-      }
-      // setup the remoting channels
-      try
-      {
-        string remotingFile = AppDomain.CurrentDomain.SetupInformation.ConfigurationFile;
-        // process the remoting configuration file
-        RemotingConfiguration.Configure(remotingFile, false);
       }
       catch (Exception ex)
       {
@@ -750,14 +740,14 @@ namespace TvService
     }
 
     /// <summary>
-    /// Starts the remoting interface
+    /// Starts the gRPC interface (TLS + API key) for remote clients
     /// </summary>
-    private void StartRemoting()
+    private void StartGrpc()
     {
       try
       {
-        // create the object reference and make the singleton instance available
-        RemotingServices.Marshal(_controller, "TvControl", typeof(IController));
+        _grpcHost = new GrpcServerHost();
+        _grpcHost.Start(_controller);
         RemoteControl.Clear();
       }
       catch (Exception ex)
@@ -767,23 +757,24 @@ namespace TvService
     }
 
     /// <summary>
-    /// Stops the remoting interface
+    /// Stops the gRPC interface
     /// </summary>
-    private void StopRemoting()
+    private void StopGrpc()
     {
-      Log.WriteFile("TV service StopRemoting");
+      Log.WriteFile("TV service StopGrpc");
       try
       {
-        if (_controller != null)
+        if (_grpcHost != null)
         {
-          RemotingServices.Disconnect(_controller);
+          _grpcHost.Stop();
+          _grpcHost = null;
         }
       }
       catch (Exception ex)
       {
         Log.Write(ex);
       }
-      Log.WriteFile("Remoting stopped");
+      Log.WriteFile("gRPC stopped");
     }
 
     #endregion
@@ -896,8 +887,8 @@ namespace TvService
       // Stop the plugins
       StopPlugins();
 
-      // Stop remoting and deinit the TvController
-      StopRemoting();
+      // Stop gRPC and deinit the TvController
+      StopGrpc();
       RemoteControl.Clear();
       if (_controller != null)
       {
@@ -957,11 +948,11 @@ namespace TvService
           _powerEventThread.IsBackground = true;
           _powerEventThread.Start();
 
-          // Init the TvController and start remoting
+          // Init the TvController and start gRPC
           _controller = new TVController();
           _controller.Init();
           RemoteControl.InstanceLocal = _controller;
-          StartRemoting();
+          StartGrpc();
 
           // Start the plugins
           StartPlugins();

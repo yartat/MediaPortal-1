@@ -26,9 +26,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Runtime.Remoting;
-using System.Runtime.Remoting.Channels;
-using System.Runtime.Remoting.Channels.Http;
 using System.Threading;
 using System.Windows.Forms;
 using MediaPortal.Configuration;
@@ -48,7 +45,7 @@ namespace MediaPortal.Plugins.Process
   /// <summary>
   /// PowerScheduler Client Plugin: process plugin which controls power management
   /// </summary>
-  public class PowerScheduler : MarshalByRefObject, IPowerScheduler, IStandbyHandlerEx, IWakeupHandler
+  public class PowerScheduler : IPowerScheduler, IStandbyHandlerEx, IWakeupHandler
   {
     #region Variables
 
@@ -153,8 +150,6 @@ namespace MediaPortal.Plugins.Process
     /// </summary>
     private bool _singleSeat;
 
-    private String _remotingURI = null;
-    private int _remotingTag = 0;
 
     #endregion
 
@@ -169,19 +164,6 @@ namespace MediaPortal.Plugins.Process
       _wakeupHandlers = new List<IWakeupHandler>();
       _lastUserTime = DateTime.Now;
       _idle = false;
-    }
-
-    #endregion
-
-    #region MarshalByRefObject overrides
-
-    /// <summary>
-    /// Make sure SAO never expires
-    /// </summary>
-    /// <returns></returns>
-    public override object InitializeLifetimeService()
-    {
-      return null;
     }
 
     #endregion
@@ -1072,6 +1054,8 @@ namespace MediaPortal.Plugins.Process
               RemotePowerControl.HostName = hostName;
               Log.Debug("PS: Set RemotePowerControl.HostName: {0}", hostName);
             }
+            RemotePowerControl.ConnectionKey = reader.GetValueAsString("tvservice", "connectionkey", String.Empty);
+            RemotePowerControl.Log = message => Log.Debug(message);
           }
           else
           {
@@ -1489,51 +1473,15 @@ namespace MediaPortal.Plugins.Process
 
     private void RegisterToRemotePowerScheduler()
     {
-      if (_remotingURI == null)
-      {
-        // Open a remoting channel
-        ChannelServices.RegisterChannel(new HttpChannel(31458), false);
-
-        // Register client's PowerScheduler ("this") as a remoting object
-        RemotingServices.Marshal(this);
-        // Get the URI for "this"
-        _remotingURI = "http://localhost:31458" + RemotingServices.GetObjectUri(this);
-        Log.Debug("PS: Marshalled client's PowerScheduler as {0} for remoting", _remotingURI);
-      }
-
-      // Run RegisterRemote() on the TvServer to register client's PowerScheduler as RemoteStandbyHandler / RemoteWakeupHandler to server's PowerScheduler
-      try
-      {
-        int newTag = RemotePowerControl.Instance.RegisterRemote(_remotingURI, _remotingURI);
-        if (_remotingTag != newTag)
-        {
-          if (_remotingTag != 0)
-          {
-            Log.Debug("PS: Reconnected to server's PowerScheduler with tag {0}", newTag);
-          }
-          Log.Debug("PS: Registered client's PowerScheduler as RemoteStandbyHandler / RemoteWakeupHandler with tag {0}", newTag);
-          _remotingTag = newTag;
-        }
-      }
-      catch (Exception ex)
-      {
-        Log.Info("PS: Cannot register client's PowerScheduler as RemoteStandbyHandler / RemoteWakeupHandler: {0}", ex.Message);
-        // Should we also clear the connection?
-        //RemotePowerControl.Clear();
-      }
+      // Let the server's PowerScheduler query this client as RemoteStandbyHandler / RemoteWakeupHandler
+      // (gRPC handler session, idempotent - reconnects by itself)
+      RemotePowerControl.StartHandlerSession(this, this);
     }
 
     private void UnregisterFromRemotePowerScheduler()
     {
-      if (_remotingTag != 0)
-      {
-        Log.Debug("PS: Unregister handlers with tvservice with tag {0}", _remotingTag);
-        if (RemotePowerControl.Instance != null)
-        {
-          RemotePowerControl.Instance.UnregisterRemote(_remotingTag);
-        }
-        _remotingTag = 0;
-      }
+      Log.Debug("PS: Unregister handlers with tvservice");
+      RemotePowerControl.StopHandlerSession();
       RemotePowerControl.Clear();
     }
 
