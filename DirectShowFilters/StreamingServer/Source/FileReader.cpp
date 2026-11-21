@@ -67,7 +67,7 @@ FileReader::~FileReader()
   }
   
   if (m_pFileName)
-    delete m_pFileName;
+    delete[] m_pFileName;
     
   if (m_pKernel32LibHandle != NULL)
   {

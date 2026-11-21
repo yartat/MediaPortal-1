@@ -63,7 +63,7 @@ FileWriter::~FileWriter()
 {
 	CloseFile();
 	if (m_pFileName)
-		delete m_pFileName;
+		delete[] m_pFileName;
 }
 
 HRESULT FileWriter::GetFileName(LPWSTR *lpszFileName)

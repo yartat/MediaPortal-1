@@ -224,7 +224,7 @@ HRESULT FileWriterThreaded::Close()
   if (m_pFileName != NULL)
   {
     LogDebug(L"FileWriterThreaded: Close(), filename: %s, MaxBuff: %d, totBuff: %d, totWake: %d", m_pFileName, m_maxBuffersUsed, m_totalBuffers, m_totalWakes);
-    delete m_pFileName;
+    delete[] m_pFileName;
     m_pFileName = NULL;
   }
 

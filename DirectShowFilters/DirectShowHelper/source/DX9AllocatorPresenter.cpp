@@ -292,7 +292,7 @@ void CVMR9AllocatorPresenter::DeleteSurfaces()
         m_pSurfaces[i] = NULL;
       }
     }
-    delete m_pSurfaces;
+    delete [] m_pSurfaces;
     m_pSurfaces = NULL;
   }
   CAutoLock cAutoLock(this);

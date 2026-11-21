@@ -451,7 +451,7 @@ HRESULT CAudioSwitcherFilter::Transform(IMediaSample* pIn, IMediaSample* pOut)
 				else if(fFloat && wfe->wBitsPerSample == 64) ((double*)pDataOut)[i] = clamp<double>(s, -1, +1);
 			}
 
-			delete buff;
+			delete [] buff;
 		}
 	}
 
