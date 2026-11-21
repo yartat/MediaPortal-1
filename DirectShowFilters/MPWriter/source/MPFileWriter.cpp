@@ -32,6 +32,7 @@
 #include "MPFileWriter.h"
 #include "liveMedia.hh"
 #include "ChannelScan.h"
+#include "../../shared/SafeLogFile.h"
 
 const AMOVIESETUP_MEDIATYPE mpeg2InputPinTypes[] =
 {
@@ -97,7 +98,7 @@ void LogDebug(const wchar_t *fmt, ...)
 	::SHGetSpecialFolderPathW(NULL, folder, CSIDL_COMMON_APPDATA, FALSE);
 	swprintf_s(fileName, L"%s\\Team MediaPortal\\MediaPortal TV Server\\log\\MPFileWriter.Log", folder);
 
-	FILE* fp = _wfopen(fileName,L"a+, ccs=UTF-8");
+	FILE* fp = OpenLogFile(fileName,L"a+, ccs=UTF-8");
 	if (fp!=NULL)
 	{
 	SYSTEMTIME systemTime;

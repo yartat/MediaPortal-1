@@ -4,6 +4,7 @@
 #include <time.h>
 #include <streams.h>
 #include <initguid.h>
+#include "../../shared/SafeLogFile.h"
 #include <shlobj.h>
 
 // For more details for memory leak detection see the alloctracing.h header
@@ -45,7 +46,7 @@ void LogDebug(const char *fmt, ...)
 //#ifdef DONTLOG
   TCHAR filename[1024];
   GetLogFile(filename);
-  FILE* fp = _tfopen(filename, _T("a+"));
+  FILE* fp = OpenLogFile(filename, _T("a+"));
 
   if (fp)
   {

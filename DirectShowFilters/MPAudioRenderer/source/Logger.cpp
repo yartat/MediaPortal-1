@@ -20,6 +20,7 @@
 #include <MMReg.h>
 #include <audioclient.h>
 #include "Globals.h"
+#include "../../shared/SafeLogFile.h"
 
 Logger::Logger() :
   m_hLogger(NULL),
@@ -83,7 +84,7 @@ DWORD Logger::ThreadProc()
 
     if (result == WAIT_OBJECT_0)
     {
-      FILE* pFile = _tfopen(fileName, _T("a+"));
+      FILE* pFile = OpenLogFile(fileName, _T("a+"));
 
       string line = GetLogLine();
       while (!line.empty())
@@ -98,7 +99,7 @@ DWORD Logger::ThreadProc()
     else if (result == WAIT_FAILED)
     {
       DWORD error = GetLastError();
-      FILE* pFile = _tfopen(fileName, _T("a+"));
+      FILE* pFile = OpenLogFile(fileName, _T("a+"));
       if (pFile)
       {
         fprintf(pFile, "LoggerThread - WaitForMultipleObjects failed, result: %d error: %d\n", result, error);

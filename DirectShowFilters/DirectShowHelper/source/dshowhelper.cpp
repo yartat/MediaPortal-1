@@ -34,6 +34,7 @@
 
 // For more details for memory leak detection see the alloctracing.h header
 #include "..\..\alloctracing.h"
+#include "../../shared/SafeLogFile.h"
 
 using namespace std;
 
@@ -314,7 +315,7 @@ UINT CALLBACK LogThread(void* param)
       }
 
       CAutoLock lock(&m_logFileLock);
-      FILE* fp = _tfopen(fileName, _T("a+"));
+      FILE* fp = OpenLogFile(fileName, _T("a+"));
       if (fp!=NULL)
       {
         SYSTEMTIME systemTime;

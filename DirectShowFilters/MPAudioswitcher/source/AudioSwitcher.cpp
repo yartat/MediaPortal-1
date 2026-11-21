@@ -33,6 +33,7 @@
 
 #include <initguid.h>
 #include "moreuuids.h"
+#include "../../shared/SafeLogFile.h"
 
 #define countof(array) (sizeof(array)/sizeof(array[0]))
 
@@ -101,7 +102,7 @@ void LogDebug(const char *fmt, ...)
 //#ifdef DONTLOG
   TCHAR filename[1024];
   GetLogFile(filename);
-  FILE* fp = _wfopen(filename,L"a+");
+  FILE* fp = OpenLogFile(filename,L"a+");
 
 	if (fp!=NULL)
 	{

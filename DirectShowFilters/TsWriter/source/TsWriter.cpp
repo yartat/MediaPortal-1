@@ -37,6 +37,7 @@
 #include "TsWriter.h"
 #include "..\..\shared\tsheader.h"
 #include "..\..\shared\DebugSettings.h"
+#include "../../shared/SafeLogFile.h"
 
 
 // Setup data
@@ -192,7 +193,7 @@ UINT CALLBACK LogThread(void* param)
       }
       
       CAutoLock lock(&m_logFileLock);
-      FILE* fp = _tfopen(fileName, _T("a+"));
+      FILE* fp = OpenLogFile(fileName, _T("a+"));
       if (fp!=NULL)
       {
         SYSTEMTIME systemTime;

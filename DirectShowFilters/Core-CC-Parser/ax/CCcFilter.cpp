@@ -51,6 +51,7 @@
 #include <shlobj.h>
 #include <queue>
 #include <string>
+#include "../../shared/SafeLogFile.h"
 
 // uncomment the //LogDebug to enable extra logging
 #define LOG_DETAIL //LogDebug
@@ -156,7 +157,7 @@ UINT CALLBACK LogThread(void* param)
       }
       
       CAutoLock lock(&m_logFileLock);
-      FILE* fp = _tfopen(fileName, _T("a+"));
+      FILE* fp = OpenLogFile(fileName, _T("a+"));
       if (fp!=NULL)
       {
         SYSTEMTIME systemTime;

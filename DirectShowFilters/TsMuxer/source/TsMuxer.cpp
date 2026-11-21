@@ -33,6 +33,7 @@
 #include "liveMedia.hh"
 #include "ChannelScan.h"
 #include "TsOutputPin.h"
+#include "../../shared/SafeLogFile.h"
 
 const AMOVIESETUP_MEDIATYPE tsPinType =
 {
@@ -137,7 +138,7 @@ void LogDebug(const char *fmt, ...)
 	::SHGetSpecialFolderPath(NULL,folder,CSIDL_COMMON_APPDATA,FALSE);
 	_stprintf(fileName, _T("%s\\Team MediaPortal\\MediaPortal TV Server\\log\\TsMuxer.Log"), folder);
 
-	FILE* fp = _tfopen(fileName, _T("a+"));
+	FILE* fp = OpenLogFile(fileName, _T("a+"));
 	if (fp!=NULL)
 	{
 		SYSTEMTIME systemTime;

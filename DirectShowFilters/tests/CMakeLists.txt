@@ -45,6 +45,7 @@ add_executable(mp_unit_tests
   unit/SystemLibraryTests.cpp
   unit/RandomNameTests.cpp
   unit/ModuleDirectoryTests.cpp
+  unit/SafeLogFileTests.cpp
   unit/StrUtilsTests.cpp
   unit/RectUtilsTests.cpp
   unit/ResamplerTests.cpp

@@ -49,6 +49,7 @@
 // For more details for memory leak detection see the alloctracing.h header
 #include "..\..\alloctracing.h"
 #include "../../shared/TcharConv.h"
+#include "../../shared/SafeLogFile.h"
 
 //These are global variables, and can be shared between multiple TsReader instances !
 DWORD m_tGTStartTime = 0;
@@ -211,7 +212,7 @@ UINT CALLBACK LogThread(void* param)
       }
       
       CAutoLock lock(&m_logFileLock);
-      FILE* fp = _tfopen(fileName, _T("a+"));
+      FILE* fp = OpenLogFile(fileName, _T("a+"));
       if (fp!=NULL)
       {
         SYSTEMTIME systemTime;

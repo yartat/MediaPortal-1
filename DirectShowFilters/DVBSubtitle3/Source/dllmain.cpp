@@ -29,6 +29,7 @@
 
 // For more details for memory leak detection see the alloctracing.h header
 #include "..\..\alloctracing.h"
+#include "../../shared/SafeLogFile.h"
 
 static bool folderOk = false;
 
@@ -132,7 +133,7 @@ void LogDebug(const char *fmt, ...)
 //#ifdef DONTLOG
   TCHAR filename[1024];
   GetLogFile(filename);
-  FILE* fp = _tfopen(filename, _T("a+"));
+  FILE* fp = OpenLogFile(filename, _T("a+"));
 
   if (fp)
   {
