@@ -23,6 +23,7 @@
 #include <bluray.h>
 #include <keys.h>
 #include "OSDTexture.h"
+#include "ModuleDirectory.h"
 
 // For more details for memory leak detection see the alloctracing.h header
 #include "..\..\alloctracing.h"
@@ -140,28 +141,17 @@ bool CLibBlurayWrapper::Initialize()
 
   m_bLibInitialized = false;
 
-  TCHAR szDirectory[MAX_PATH] = _T("");
-  TCHAR szJAR[MAX_PATH] = _T("");
-  TCHAR szPath[MAX_PATH] = _T("");
-
-  HMODULE hModule = NULL;
-  DWORD flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
-
-  GetModuleHandleEx(flags, (LPCTSTR)&StubForGetModuleHandleEx, &hModule);
-  GetModuleFileName(hModule, szPath, MAX_PATH);
-
-  _tcsncpy(szDirectory, szPath, _tcsrchr(szPath, '\\') - szPath);
-  szDirectory[_tcslen(szDirectory)] = '\0';
-
-  if (_stprintf_s(szJAR, _T("LIBBLURAY_CP=%s\\libbluray.jar"), szDirectory) == -1)
+  ModuleString directory;
+  if (!DirectoryOfModuleAt((const void*)&StubForGetModuleHandleEx, directory))
   {
-    DWORD error = GetLastError();
-    LogDebug("Failed to format szJAR: %d", (int)error);
+    LogDebug("Failed to get the directory of the module: %d", (int)GetLastError());
 
     return false;
   }
 
-  if (_tputenv(szJAR) != 0)
+  const ModuleString jar = _T("LIBBLURAY_CP=") + directory + _T("\\libbluray.jar");
+
+  if (_tputenv(jar.c_str()) != 0)
   {
     DWORD error = GetLastError();
     LogDebug("Failed to set LIBBLURAY_CP environment variable: %d", (int)error);
@@ -169,9 +159,9 @@ bool CLibBlurayWrapper::Initialize()
     return false;
   }
 
-  _stprintf_s(szDirectory, _T("%s\\bluray.dll"), szDirectory);
-  LogDebug("CLibBlurayWrapper - Load bluray: %s", ToAnsi(szDirectory).c_str());
-  m_hDLL = LoadLibrary(szDirectory);
+  const ModuleString dll = directory + _T("\\bluray.dll");
+  LogDebug("CLibBlurayWrapper - Load bluray: %s", ToAnsi(dll.c_str()).c_str());
+  m_hDLL = LoadLibrary(dll.c_str());
 
   if (!m_hDLL)
   {
