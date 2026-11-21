@@ -21,6 +21,7 @@
 
 #include "stdafx.h"
 #include "STS.h"
+#include "EmbeddedFont.h"
 #include <algorithm>
 
 #include "RealTextParser.h"
@@ -1630,75 +1631,23 @@ static double GetFloat(LPCWSTR& pszBuff, int& nLength, WCHAR sep = L',')
     return ret;
 }
 
+// The font stays private to this process (AddFontMemResourceEx). It used to fall back to a file with a predictable name in %TEMP%
+// that was installed for the whole session and never deleted (SECURITY_AUDIT.md: CD-04); a font that the memory path refuses is skipped.
 static bool LoadFont(const tstring& font)
 {
-    int len = int(font.size());
-
-    std::unique_ptr<BYTE[]> pData(len > 0 ? new(std::nothrow) BYTE[len] : nullptr);
-    if (len == 0 || (len & 3) == 1 || !pData) {
+    std::vector<BYTE> data;
+    if (!DecodeEmbeddedFont(font, data) || data.empty()) {
         return false;
     }
 
-    const TCHAR* s = font.c_str();
-    const TCHAR* e = s + len;
-    for (BYTE* p = pData.get(); s < e; s++, p++) {
-        *p = BYTE(*s - 33);
-    }
-
-    for (ptrdiff_t i = 0, j = 0, k = len & ~3; i < k; i += 4, j += 3) {
-        pData[j + 0] = ((pData[i + 0] & 63) << 2) | ((pData[i + 1] >> 4) & 3);
-        pData[j + 1] = ((pData[i + 1] & 15) << 4) | ((pData[i + 2] >> 2) & 15);
-        pData[j + 2] = ((pData[i + 2] &  3) << 6) | ((pData[i + 3] >> 0) & 63);
-    }
-
-    int datalen = (len & ~3) * 3 / 4;
-
-    if ((len & 3) == 2) {
-        pData[datalen++] = ((pData[(len & ~3) + 0] & 63) << 2) | ((pData[(len & ~3) + 1] >> 4) & 3);
-    } else if ((len & 3) == 3) {
-        pData[datalen++] = ((pData[(len & ~3) + 0] & 63) << 2) | ((pData[(len & ~3) + 1] >> 4) & 3);
-        pData[datalen++] = ((pData[(len & ~3) + 1] & 15) << 4) | ((pData[(len & ~3) + 2] >> 2) & 15);
-    }
-
-    HANDLE hFont = INVALID_HANDLE_VALUE;
-
-    if (HMODULE hModule = LoadLibrary(_T("gdi32.dll"))) {
-        typedef HANDLE(WINAPI * PAddFontMemResourceEx)(IN PVOID, IN DWORD, IN PVOID, IN DWORD*);
-        if (PAddFontMemResourceEx f = (PAddFontMemResourceEx)GetProcAddress(hModule, "AddFontMemResourceEx")) {
-            DWORD cFonts;
-            hFont = f(pData.get(), datalen, nullptr, &cFonts);
-        }
-
-        FreeLibrary(hModule);
-    }
-
-    if (hFont == INVALID_HANDLE_VALUE) {
-        TCHAR path[MAX_PATH];
-        GetTempPath(MAX_PATH, path);
-
-        DWORD chksum = 0;
-        for (ptrdiff_t i = 0, j = datalen >> 2; i < j; i++) {
-            chksum += ((DWORD*)(BYTE*)pData.get())[i];
-        }
-
-        tstring fn;
-        fn = ::Format(_T("%sfont%08lx.ttf"), path, chksum);
-
-        if (!PathUtils::Exists(fn.c_str())) {
-            if (FilePtr f = OpenFile(fn, L"wb")) {
-                fwrite(pData.get(), 1, datalen, f.get());
-            }
-        }
-
-        AddFontResource(fn.c_str());
-    }
-
-    return true;
+    DWORD cFonts = 0;
+    return AddFontMemResourceEx(data.data(), (DWORD)data.size(), nullptr, &cFonts) != nullptr;
 }
 
 static bool LoadUUEFont(CTextFile* file)
 {
     tstring s, font;
+    int fonts = 0;
     while (file->ReadString(s)) {
         FastTrim(s);
         if (s.empty()) {
@@ -1725,15 +1674,19 @@ static bool LoadUUEFont(CTextFile* file)
             }
         }
         if (StringFind(s, _T("fontname:")) == 0) {
-            LoadFont(font);
+            if (fonts++ < EMBEDDED_FONT_MAX_COUNT) {
+                LoadFont(font);
+            }
             font.clear();
             continue;
         }
 
-        font += s;
+        if (font.size() <= EMBEDDED_FONT_MAX_TEXT) { // above the limit LoadFont refuses the font; the text is not collected any further
+            font += s;
+        }
     }
 
-    if (!font.empty()) {
+    if (!font.empty() && fonts < EMBEDDED_FONT_MAX_COUNT) {
         LoadFont(font);
     }
 

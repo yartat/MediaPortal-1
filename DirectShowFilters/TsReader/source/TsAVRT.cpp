@@ -22,6 +22,7 @@
 
 #include "StdAfx.h"
 #include "TsAVRT.h"
+#include "../../shared/SystemLibrary.h"
 
 // For more details for memory leak detection see the alloctracing.h header
 #include "..\..\alloctracing.h"
@@ -62,12 +63,7 @@ TsAVRT::~TsAVRT()
 bool TsAVRT::LoadAVRT()
 {
   LogDebug("TsAVRT::LoadAVRT() - Loading AVRT libraries");
-  TCHAR systemFolder[MAX_PATH];
-  TCHAR DLLFileName[MAX_PATH];
-  GetSystemDirectory(systemFolder,sizeof(systemFolder));
-  
-  _stprintf_s(DLLFileName, MAX_PATH, _T("%s\\avrt.dll"), systemFolder);
-  m_hModuleAVRT = LoadLibrary(DLLFileName);
+  m_hModuleAVRT = LoadSystemLibrary(L"avrt.dll");
   // Vista and later OS only, allowed to return NULL. Remember to check against NULL when using
   if (m_hModuleAVRT)
   {

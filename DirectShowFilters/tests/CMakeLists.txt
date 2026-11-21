@@ -42,6 +42,7 @@ add_executable(mp_unit_tests
   unit/BdPacketTests.cpp
   unit/BdParserTests.cpp
   unit/BdAudioPesTests.cpp
+  unit/SystemLibraryTests.cpp
   unit/StrUtilsTests.cpp
   unit/RectUtilsTests.cpp
   unit/ResamplerTests.cpp
@@ -219,6 +220,7 @@ if(MP_MPC_SUBS_ENABLED)
     subs/VobSubImageTests.cpp
     subs/DrawingOverlayTests.cpp
     subs/DrawingCoordinateTests.cpp
+    subs/EmbeddedFontTests.cpp
   )
   mp_target(mp_subs_tests
     FOLDER "Tests"

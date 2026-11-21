@@ -17,6 +17,7 @@
 #include "stdafx.h"
 #include "Globals.h"
 #include "WASAPIRenderFilter.h"
+#include "../../shared/SystemLibrary.h"
 #include "TimeSource.h"
 
 #include "alloctracing.h"
@@ -62,7 +63,7 @@ CWASAPIRenderFilter::CWASAPIRenderFilter(AudioRendererSettings* pSettings, CSync
     Log("Disabling WASAPI - OS version earlier than Vista detected");
 
   // Load Vista specifics DLLs
-  m_hLibAVRT = LoadLibrary (_T("AVRT.dll"));
+  m_hLibAVRT = LoadSystemLibrary(L"avrt.dll");
   if (m_hLibAVRT && bWASAPIAvailable)
   {
     pfAvSetMmThreadCharacteristicsW   = (PTR_AvSetMmThreadCharacteristicsW)	GetProcAddress (m_hLibAVRT, "AvSetMmThreadCharacteristicsW");

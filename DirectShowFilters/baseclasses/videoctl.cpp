@@ -8,6 +8,7 @@
 
 
 #include <streams.h>
+#include "../shared/SystemLibrary.h"
 #include "ddmm.h"
 
 // Load a string from the resource file string table. The buffer must be at
@@ -620,7 +621,7 @@ HRESULT CLoadDirectDraw::LoadDirectDraw(__in LPSTR szDevice)
     if(!m_hDirectDraw)
     {
         UINT ErrorMode = SetErrorMode(SEM_NOOPENFILEERRORBOX);
-        m_hDirectDraw = LoadLibrary(TEXT("DDRAW.DLL"));
+        m_hDirectDraw = LoadSystemLibrary(L"ddraw.dll");
         SetErrorMode(ErrorMode);
 
         if (m_hDirectDraw == NULL) {

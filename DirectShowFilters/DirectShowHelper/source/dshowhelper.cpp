@@ -17,6 +17,7 @@
 #pragma warning(disable: 4995 4996)
 
 #include "StdAfx.h"
+#include "../../shared/SystemLibrary.h"
 #include <streams.h>
 #include <shlobj.h>
 #include <d3dx9.h>
@@ -608,11 +609,8 @@ bool LoadEVR()
 {
   Log("============================================================");
   Log("Loading EVR libraries");
-  TCHAR systemFolder[MAX_PATH];
   TCHAR DLLFileName[MAX_PATH];
-  GetSystemDirectory(systemFolder,sizeof(systemFolder));
-  _stprintf(DLLFileName, _T("%s\\dxva2.dll"), systemFolder);
-  m_hModuleDXVA2=LoadLibrary(DLLFileName);
+  m_hModuleDXVA2 = LoadSystemLibrary(L"dxva2.dll");
   if (m_hModuleDXVA2 != NULL)
   {
     Log("Found dxva2.dll");
@@ -620,9 +618,8 @@ bool LoadEVR()
     if (m_pDXVA2CreateDirect3DDeviceManager9 != NULL)
     {
       Log("Found method DXVA2CreateDirect3DDeviceManager9");
-      _stprintf(DLLFileName, _T("%s\\evr.dll"), systemFolder);
-      m_hModuleEVR = LoadLibrary(DLLFileName);
-      m_pMFCreateVideoSampleFromSurface = (TMFCreateVideoSampleFromSurface*)GetProcAddress(m_hModuleEVR,"MFCreateVideoSampleFromSurface");
+      m_hModuleEVR = LoadSystemLibrary(L"evr.dll");
+      m_pMFCreateVideoSampleFromSurface = m_hModuleEVR ? (TMFCreateVideoSampleFromSurface*)GetProcAddress(m_hModuleEVR,"MFCreateVideoSampleFromSurface") : NULL;
 
       if (m_pMFCreateVideoSampleFromSurface)
       {
@@ -631,16 +628,14 @@ bool LoadEVR()
         if(m_pMFCreateVideoMediaType)
         {
           Log("Found method MFCreateVideoMediaType");
-          _stprintf(DLLFileName, _T("%s\\mfplat.dll"), systemFolder);
-          m_hModuleMFPLAT = LoadLibrary(DLLFileName);
-          m_pMFCreateMediaType = (TMFCreateMediaType*)GetProcAddress(m_hModuleMFPLAT,"MFCreateMediaType");
+          m_hModuleMFPLAT = LoadSystemLibrary(L"mfplat.dll");
+          m_pMFCreateMediaType = m_hModuleMFPLAT ? (TMFCreateMediaType*)GetProcAddress(m_hModuleMFPLAT,"MFCreateMediaType") : NULL;
           if (m_pMFCreateMediaType)
           {
             Log("Found method MFCreateMediaType");
             Log("Successfully loaded EVR dlls");
             
-            _stprintf(DLLFileName, _T("%s\\dwmapi.dll"), systemFolder);
-            m_hModuleDWMAPI = LoadLibrary(DLLFileName);
+            m_hModuleDWMAPI = LoadSystemLibrary(L"dwmapi.dll");
             // Vista / Windows 7 only, allowed to return NULL. Remember to check agains NULL when using
             if (m_hModuleDWMAPI)
             {
@@ -654,8 +649,7 @@ bool LoadEVR()
             }
 
 
-            _stprintf(DLLFileName, _T("%s\\avrt.dll"), systemFolder);
-            m_hModuleAVRT = LoadLibrary(DLLFileName);
+            m_hModuleAVRT = LoadSystemLibrary(L"avrt.dll");
             // Vista / Windows 7 only, allowed to return NULL. Remember to check agains NULL when using
             if (m_hModuleAVRT)
             {

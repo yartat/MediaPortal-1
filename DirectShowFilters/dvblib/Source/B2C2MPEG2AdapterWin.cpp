@@ -20,6 +20,7 @@
  *
  */
 #include "stdafx.h"
+#include "../../shared/SystemLibrary.h"
 #include <stdio.h>
 
 #include "Include\b2c2_defs.h"
@@ -860,7 +861,7 @@ BOOL B2C2MPEG2Adapter::RegisterDeviceNotification(HANDLE hRecipient)
 	if(m_hUser32Dll == NULL)
 	{
 		// Load the library.
-		m_hUser32Dll = LoadLibrary(TEXT ("User32.dll"));
+		m_hUser32Dll = LoadSystemLibrary(L"user32.dll");
 	}
 
 	if(m_hUser32Dll == NULL)
