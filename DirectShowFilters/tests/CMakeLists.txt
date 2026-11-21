@@ -43,6 +43,7 @@ add_executable(mp_unit_tests
   unit/BdParserTests.cpp
   unit/BdAudioPesTests.cpp
   unit/SystemLibraryTests.cpp
+  unit/RandomNameTests.cpp
   unit/StrUtilsTests.cpp
   unit/RectUtilsTests.cpp
   unit/ResamplerTests.cpp

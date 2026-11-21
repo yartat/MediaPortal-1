@@ -29,6 +29,7 @@
 #include <comdef.h>
 #include "../../shared/TcharConv.h"
 #include "../../shared/WStringUtil.h"
+#include "../../shared/RandomName.h"
 
 // For more details for memory leak detection see the alloctracing.h header
 #include "..\..\alloctracing.h"
@@ -164,7 +165,7 @@ HRESULT FileReader::OpenFile()
       							(DWORD) (GENERIC_READ | GENERIC_WRITE),				// File access
       							(DWORD) (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), // Share access
       							NULL,						            // Security
-      							(DWORD) CREATE_ALWAYS,		  // Open flags
+      							(DWORD) CREATE_NEW,		  // Open flags (a file that exists is never truncated)
       							(DWORD) (FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE),	// More flags
       							NULL);						          // Template
       
@@ -232,7 +233,7 @@ HRESULT FileReader::OpenFile()
       							(DWORD) (GENERIC_READ | GENERIC_WRITE),				// File access
       							(DWORD) (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), // Share access
       							NULL,						            // Security
-      							(DWORD) CREATE_ALWAYS,		  // Open flags
+      							(DWORD) CREATE_NEW,		  // Open flags (a file that exists is never truncated)
       							(DWORD) (FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE | FILE_FLAG_WRITE_THROUGH),	// More flags
       							NULL);						          // Template
       
@@ -428,16 +429,9 @@ __int64 FileReader::GetFileSize()
   return -1;
 }
 
-std::wstring FileReader::randomStrGen(int length) 
+std::wstring FileReader::randomStrGen(int length)
 {
-    const std::wstring charset = L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
-    std::wstring result(length, L'x');
-
-    srand((unsigned int)timeGetTime());
-    for (int i = 0; i < length; i++)
-        result[i] = charset[rand() % charset.size()];
-
-    return result;
+  return RandomName(length);
 }
 
 //Enable dummy file writes to workaround SMB2/SM3 'file existance cache' problems
