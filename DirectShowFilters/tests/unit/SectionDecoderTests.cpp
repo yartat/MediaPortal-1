@@ -340,3 +340,163 @@ TEST_F(SectionDecoder, PayloadStartInTheLastBytesOfAPacketDoesNotReadPastIt)
   b.data()[5] = 0;
   decoder.OnTsPacket(b.data());
 }
+
+// --- SECURITY_AUDIT.md: TS-02 (the state machine of the assembly, without fuzzing until now) ----------------------------------
+
+namespace
+{
+  struct Mux
+  {
+    std::vector<Bytes> sections;          // what went in
+    std::vector<TsPacket> packets;
+  };
+
+  // Sections back to back in the payload: a packet that holds the start of a section has the payload unit start flag and a
+  // pointer_field with the offset of the first start; the tail of the section before it comes first. The rest is stuffing.
+  Mux MuxSections(const std::vector<Bytes>& sections)
+  {
+    Mux m;
+    m.sections = sections;
+    Bytes stream;
+    std::vector<size_t> starts;
+    for (const Bytes& s : sections)
+    {
+      starts.push_back(stream.size());
+      stream.insert(stream.end(), s.begin(), s.end());
+    }
+    size_t pos = 0, next = 0;
+    unsigned counter = 0;
+    while (pos < stream.size())
+    {
+      while (next < starts.size() && starts[next] < pos)
+        next++;
+      const bool start = next < starts.size() && starts[next] < pos + 183;
+      TsPacket p = MakePacket(kPid, 0x10 | (counter++ & 0x0F), start);
+      size_t at = 4;
+      if (start)
+        p.data[at++] = static_cast<uint8_t>(starts[next] - pos);
+      size_t n = (std::min<size_t>)(188 - at, stream.size() - pos);
+      if (!start && next < starts.size() && starts[next] - pos == 183)
+        n = 183;                                        // the next section cannot start in a packet without the flag: stuffing
+      memcpy(&p.data[at], &stream[pos], n);
+      memset(&p.data[at + n], 0xFF, 188 - at - n);
+      pos += n;
+      m.packets.push_back(p);
+    }
+    return m;
+  }
+
+  std::vector<Bytes> RandomSections(uint32_t& seed, int count, bool longOnly)
+  {
+    auto next = [&seed]() { seed = seed * 1664525u + 1013904223u; return seed >> 8; };
+    std::vector<Bytes> sections;
+    for (int i = 0; i < count; i++)
+    {
+      const size_t size = (next() % 4) == 0 ? 1 + next() % 3000 : 1 + next() % 300;     // many short ones, some long
+      Bytes body(size);
+      for (uint8_t& b : body)
+        b = static_cast<uint8_t>(next());
+      if (!longOnly && next() % 5 == 0)
+      {
+        body.resize((std::max<size_t>)(size, 5));
+        sections.push_back(MakeShortSection(0x70, body));
+      }
+      else
+        sections.push_back(MakeLongSection(0x40 + next() % 16, next() & 0xFFFF, next() & 0x1F, body));
+    }
+    return sections;
+  }
+
+  Bytes Content(const CSection& s)
+  {
+    return Bytes(s.Data, s.Data + s.section_length + 3);
+  }
+}
+
+TEST_F(SectionDecoder, ManySectionsOfAnySizeBackToBackAreAllDeliveredIntact)
+{
+  uint32_t seed = 777;
+  for (int round = 0; round < 40; round++)
+  {
+    collector.sections.clear();
+    decoder.Reset();
+    const Mux mux = MuxSections(RandomSections(seed, 30, false));
+    Feed(decoder, mux.packets);
+    ASSERT_EQ(collector.sections.size(), mux.sections.size()) << "round " << round;
+    for (size_t i = 0; i < mux.sections.size(); i++)
+      EXPECT_EQ(Content(collector.sections[i].section), mux.sections[i]) << "round " << round << " section " << i;
+  }
+}
+
+TEST_F(SectionDecoder, LostAndDamagedPacketsNeverDeliverAnythingThatWasNotSent)
+{
+  // Long-syntax sections have a CRC: whatever is delivered after packets were dropped, repeated or damaged must be a section
+  // that went in, byte for byte (no tail of one section glued to the head of another, no stale bytes).
+  uint32_t seed = 4242;
+  auto next = [&seed]() { seed = seed * 1664525u + 1013904223u; return seed >> 8; };
+  for (int round = 0; round < 60; round++)
+  {
+    collector.sections.clear();
+    decoder.Reset();
+    const Mux mux = MuxSections(RandomSections(seed, 25, true));
+    for (const TsPacket& original : mux.packets)
+    {
+      const unsigned what = next() % 20;
+      if (what == 0)
+        continue;                                       // lost
+      TsPacket p = original;
+      if (what == 1)
+        p.data[4 + next() % 184] ^= static_cast<uint8_t>(1 + next() % 255);   // damaged
+      decoder.OnTsPacket(p.data);
+      if (what == 2)
+        decoder.OnTsPacket(p.data);                     // repeated
+    }
+    for (const Received& r : collector.sections)
+    {
+      bool known = false;
+      for (const Bytes& s : mux.sections)
+        if (s == Content(r.section))
+        {
+          known = true;
+          break;
+        }
+      EXPECT_TRUE(known) << "round " << round << ": a section of " << r.section.section_length + 3 << " bytes that was never sent";
+    }
+  }
+}
+
+TEST_F(SectionDecoder, ATinySectionNeverShowsTheBytesOfThePreviousSection)
+{
+  // A section of fewer than 8 bytes has no complete header. Wherever it starts in a packet (also split over two packets), what
+  // is delivered of it must not contain what the previous, long section left in the buffer behind its last byte.
+  decoder.EnableCrcCheck(false);
+  for (int total = 4; total <= 7; total++)
+  {
+    for (int offset = 0; offset < 183; offset++)
+    {
+      collector.sections.clear();
+      decoder.Reset();
+      Feed(decoder, PacketizeSections(kPid, MakeLongSection(0x42, 1, 0, Body(150, 0xAA))));   // leaves bytes in the buffer
+      collector.sections.clear();
+
+      Bytes tiny = MakeShortSection(0x70, Bytes(total - 3, 0x11));
+      TsPacket a = MakePacket(kPid, 0x10, true);
+      a.data[4] = static_cast<uint8_t>(offset);                                     // pointer_field
+      memset(&a.data[5], 0xFF, 183);
+      const size_t room = 183 - offset;
+      memcpy(&a.data[5 + offset], tiny.data(), (std::min<size_t>)(room, tiny.size()));
+      decoder.OnTsPacket(a.data);
+      if (room < tiny.size())
+      {
+        TsPacket b = MakePacket(kPid, 0x11, false);
+        memset(&b.data[4], 0xFF, 184);
+        memcpy(&b.data[4], &tiny[room], tiny.size() - room);
+        decoder.OnTsPacket(b.data);
+      }
+      for (const Received& r : collector.sections)
+        for (int i = total; i < 8; i++)
+          EXPECT_EQ(r.section.Data[i], 0) << "tiny section of " << total << " bytes at offset " << offset << ": byte " << i
+                                          << " is left over from the previous section";
+    }
+  }
+}
