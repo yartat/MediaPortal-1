@@ -258,7 +258,7 @@ void CRecorder::Write(byte* buffer, int len)
             //On fat16/fat32 we can only create files of max. 2gb/4gb
             if (ERROR_FILE_TOO_LARGE == GetLastError())
             {
-              LogDebug("Recorder:Maximum filesize reached for file:'%s' %d",m_szFileName);
+              LogDebug("Recorder:Maximum filesize reached for file:'%s' %d",m_szFileName, m_iPart);
                 //close the file...
 		          CloseHandle(m_hFile);
               m_hFile=INVALID_HANDLE_VALUE;
@@ -267,7 +267,7 @@ void CRecorder::Write(byte* buffer, int len)
               char newFileName[MAX_PATH];
               BuildNextPartName(m_szFileName, m_iPart, newFileName, sizeof(newFileName));
 
-						  LogDebug("Recorder:Create new  file:'%s' %d",newFileName);
+						  LogDebug("Recorder:Create new  file:'%s' %d",newFileName, m_iPart);
 	            m_hFile = CreateFile(newFileName,      // The filename
 						             (DWORD) GENERIC_WRITE,         // File access
 						             (DWORD) FILE_SHARE_READ,       // Share access

@@ -454,7 +454,7 @@ void COverlayRenderer::OverlayProc(const BD_OVERLAY* ov)
 
   {
 #ifdef LOG_DRAWING
-    LogDebug("new arriva PTS: %6.3f wait: %6.3f", (CONVERT_90KHz_DS(copy->pts)) / 10000000.0);
+    LogDebug("new arriva PTS: %6.3f", (CONVERT_90KHz_DS(copy->pts)) / 10000000.0);
 #endif
 
     CAutoLock queueLock(&m_csOverlayQueue);
@@ -711,12 +711,12 @@ void COverlayRenderer::ClearArea(OSDTexture* pPlane, const BD_OVERLAY* pOv)
     {
       hr = m_pD3DDevice->ColorFill(dstSurface, &dstRect, 0x00000000);
       if (FAILED(hr))
-        LogDebug("ovr: ClearArea - ColorFill failed: 0x%08x");
+        LogDebug("ovr: ClearArea - ColorFill failed: 0x%08x", hr);
       else
         AdjustDirtyRect(pOv->plane, pOv->x, pOv->y, pOv->w, pOv->h);
     }
     else
-      LogDebug("ovr: ClearArea - GetSurfaceLevel failed: 0x%08x");
+      LogDebug("ovr: ClearArea - GetSurfaceLevel failed: 0x%08x", hr);
   }
 }
 
@@ -945,7 +945,7 @@ void COverlayRenderer::CopyToFrontBuffer(uint8_t plane, bool ARGB)
 
   if (FAILED(hr))
   {
-    LogDebug("ovr: CopyToFrontBuffer - GetSurfaceLevel(1): 0x%08x");
+    LogDebug("ovr: CopyToFrontBuffer - GetSurfaceLevel(1): 0x%08x", hr);
     return;
   }
     
@@ -954,14 +954,14 @@ void COverlayRenderer::CopyToFrontBuffer(uint8_t plane, bool ARGB)
   if (FAILED(hr))
   {
     sourceSurface->Release();
-    LogDebug("ovr: CopyToFrontBuffer - GetSurfaceLevel(2): 0x%08x");
+    LogDebug("ovr: CopyToFrontBuffer - GetSurfaceLevel(2): 0x%08x", hr);
     return;
   }
 
   hr = m_pD3DDevice->StretchRect(sourceSurface, &m_dirtyRect[plane], dstSurface, &m_dirtyRect[plane], D3DTEXF_NONE);
 
   if (FAILED(hr))
-    LogDebug("ovr: CopyToFrontBuffer - StretchRect: 0x%08x");
+    LogDebug("ovr: CopyToFrontBuffer - StretchRect: 0x%08x", hr);
 
   sourceSurface->Release();
   dstSurface->Release();

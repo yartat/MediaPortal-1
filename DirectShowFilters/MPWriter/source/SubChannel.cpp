@@ -62,7 +62,7 @@ CSubChannel::~CSubChannel()
 
 	if(m_bIsRecording){
 		StopRecord();
-		LogDebug("%CSubChannel::  - (%d) - Stopping Recording",m_id);
+		LogDebug("SubChannel::  - (%d) - Stopping Recording",m_id);
 	}
 
 

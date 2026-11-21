@@ -1455,7 +1455,7 @@ bool DvrMsCreate(LONG *id, IBaseFilter* streamBufferSink, LPCWSTR strPath, DWORD
     Com::SmartQIPtr<IStreamBufferSink> sink=streamBufferSink;
     if (!sink)
     {
-      Log("cannot get IStreamBufferSink:%x");
+      Log("cannot get IStreamBufferSink");
       return false;
     }
     hr=sink->CreateRecorder( strPath,dwRecordingType,&pRecUnk);

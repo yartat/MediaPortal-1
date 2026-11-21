@@ -220,7 +220,7 @@ HRESULT CAC3EncoderFilter::PutSample(IMediaSample *pSample)
     {
       hr = ProcessAC3Data(NULL, 0, NULL);
       if (FAILED(hr))
-        Log("AC3Encoder - Failed to process remaining data on format change: 0x%08x");
+        Log("AC3Encoder - Failed to process remaining data on format change: 0x%08x", hr);
     }
 
     // Apply format change locally, 

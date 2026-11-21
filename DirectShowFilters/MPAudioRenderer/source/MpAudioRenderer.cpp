@@ -167,7 +167,7 @@ CMPAudioRenderer::~CMPAudioRenderer()
   {
     HRESULT hr = m_pPipeline->Cleanup();
     if (FAILED(hr))
-      Log("Pipeline cleanup failed with: (0x%08x)");
+      Log("Pipeline cleanup failed with: (0x%08x)", hr);
 
     m_pPipeline->DisconnectAll();
     if (FAILED(hr))

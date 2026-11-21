@@ -277,7 +277,7 @@ HRESULT FileWriterThreaded::WriteWithRetry(PBYTE pbData, ULONG lDataLength, int 
       //On fat16/fat32 we can only create files of max. 2gb/4gb
       if (ERROR_FILE_TOO_LARGE == dwErr)
       {
-        LogDebug(L"FileWriterThreaded:Maximum filesize reached for file: '%s' %d", m_pFileName);
+        LogDebug(L"FileWriterThreaded:Maximum filesize reached for file: '%s' %d", m_pFileName, m_iPart);
         //close the file...
         CloseHandle(m_hFile);
         m_hFile=INVALID_HANDLE_VALUE;
@@ -285,7 +285,7 @@ HRESULT FileWriterThreaded::WriteWithRetry(PBYTE pbData, ULONG lDataLength, int 
         //create a new file
         wchar_t newFileName[MAX_PATH];
         BuildNextPartName(m_pFileName, m_iPart, newFileName, MAX_PATH);
-        LogDebug(L"FileWriterThreaded:Create new file part:'%s' %d",newFileName);
+        LogDebug(L"FileWriterThreaded:Create new file part:'%s' %d",newFileName, m_iPart);
         m_hFile = CreateFileW(newFileName,              // The filename
                     (DWORD) GENERIC_WRITE,              // File access
                     (DWORD) FILE_SHARE_READ,            // Share access

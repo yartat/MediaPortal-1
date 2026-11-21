@@ -1644,7 +1644,7 @@ void MPMadPresenter::ReinitD3DDevice()
   }
   catch (...)
   {
-    Log("%s : ReinitOSDDevice catch exception");
+    Log("%s : ReinitOSDDevice catch exception", __FUNCTION__);
   }
   Log("%s : ReinitOSDDevice for : %d x %d", __FUNCTION__, m_dwGUIWidth, m_dwGUIHeight);
 }

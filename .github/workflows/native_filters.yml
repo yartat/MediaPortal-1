@@ -6,6 +6,7 @@ on:
       - 'DirectShowFilters/**'
       - 'Build/Check-NativeHardening.ps1'
       - 'Build/Check-NoMfcAtl.ps1'
+      - 'Build/Check-LogFormats.ps1'
       - '.github/actions/setup-vcpkg/**'
       - '.github/workflows/native_filters.yml'
 
@@ -17,6 +18,7 @@ on:
       - 'DirectShowFilters/**'
       - 'Build/Check-NativeHardening.ps1'
       - 'Build/Check-NoMfcAtl.ps1'
+      - 'Build/Check-LogFormats.ps1'
       - '.github/actions/setup-vcpkg/**'
       - '.github/workflows/native_filters.yml'
 
@@ -112,6 +114,18 @@ jobs:
 
       - name: Check for MFC and ATL
         run: pwsh -NoProfile -File Build/Check-NoMfcAtl.ps1 -Path DirectShowFilters
+
+  log-formats:
+    name: Log format strings of DirectShowFilters
+
+    runs-on: windows-2022
+
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v7
+
+      - name: Check the arguments of log calls
+        run: pwsh -NoProfile -File Build/Check-LogFormats.ps1 -Path DirectShowFilters
 
   tests:
     name: Tests of DirectShowFilters (CMake, x64 Unicode)

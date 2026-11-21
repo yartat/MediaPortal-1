@@ -400,7 +400,7 @@ void CLvctParser::DecodeMultipleStrings(byte* b, int length, vector<char*>* stri
         //LogDebug("LvctParser: segment %d, compression type = 0x%x, mode = 0x%x, number of bytes = %d", j, compressionType, mode, numberBytes);
         if (pointer + numberBytes > length)
         {
-          LogDebug("LvctParser: invalid string length %d in multiple string structure, pointer = %d, number of bytes = %d, structure length = %d", pointer, numberBytes, length);
+          LogDebug("LvctParser: invalid string length in multiple string structure, pointer = %d, number of bytes = %d, structure length = %d", pointer, numberBytes, length);
           return;
         }
 
