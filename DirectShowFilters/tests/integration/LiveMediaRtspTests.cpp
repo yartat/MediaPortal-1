@@ -12,6 +12,7 @@
 #include "MPTaskScheduler.h"
 #include "../unit/AllocLimit.h"
 #include "../../StreamingServer/source/EventThreadCalls.h"
+#include "../../StreamingServer/source/RtspAuth.h"
 
 // MPRTSPServer logs through the host program
 void LogDebug(const wchar_t*, ...) {}
@@ -284,4 +285,40 @@ TEST(EventThreadCalls, TimeoutLeavesTheCallQueuedAndLeaveRunsIt)
   EXPECT_EQ(0, *hits);
   calls.Leave();
   EXPECT_EQ(1, *hits);
+}
+
+// SECURITY_AUDIT.md: CD-02. With a user name the server asks for the password (digest); without one it stays open.
+TEST(RtspAuth, NoUserNameMeansNoDatabase)
+{
+  EXPECT_EQ(MakeAuthDatabase(nullptr, "x"), nullptr);
+  EXPECT_EQ(MakeAuthDatabase("", "x"), nullptr);
+  UserAuthenticationDatabase* database = MakeAuthDatabase("user", nullptr);   // no password: an empty one
+  EXPECT_NE(database, nullptr);
+  delete database;
+}
+
+TEST_F(LiveMediaRtsp, WithAuthenticationTheRequestNeedsTheRightPassword)
+{
+  UserAuthenticationDatabase* database = MakeAuthDatabase("tv", "secret");
+  ASSERT_NE(database, nullptr);
+  MPRTSPServer* server = MPRTSPServer::createNew(*env, Port(port), database);
+  ASSERT_NE(server, nullptr);
+  const std::string url = Url("no-such-stream");
+
+  struct Case { const char* user; const char* password; int expected; };
+  const Case cases[] = {{nullptr, nullptr, 401}, {"tv", "wrong", 401}, {"other", "secret", 401}, {"tv", "secret", 404}};  // 404: past the login
+  for (const Case& c : cases)
+  {
+    Answer answer;
+    MPRTSPClient* client = MPRTSPClient::createNew(&answer, *env, url.c_str(), 0, "mp-test");
+    ASSERT_NE(client, nullptr);
+    Authenticator authenticator(c.user ? c.user : "", c.password ? c.password : "");
+    client->sendDescribeCommand(OnAnswer, c.user ? &authenticator : nullptr);
+    ASSERT_TRUE(Wait(answer));
+    EXPECT_EQ(answer.code, c.expected) << (c.user ? c.user : "(none)") << " / " << (c.password ? c.password : "(none)") << ": " << answer.text;
+    Medium::close(client);
+  }
+
+  Medium::close(server);
+  delete database;
 }

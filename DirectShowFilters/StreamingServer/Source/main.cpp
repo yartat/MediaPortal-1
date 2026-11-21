@@ -9,6 +9,7 @@
 #include "TsMPEG2TransportFileServerMediaSubsession.h" 
 #include "MPRTSPServer.h"
 #include "EventThreadCalls.h"
+#include "RtspAuth.h"
 #include <sstream>
 #include <iomanip>  // setfill(), setw()
 
@@ -63,6 +64,8 @@ const int	DEFAULT_RTSP_PORT = 554;
 
 UsageEnvironment* m_env;
 MPRTSPServer*			m_rtspServer;
+// Digest authentication of the RTSP server (CD-02); live555 does not take over the database, it is deleted after the server
+static UserAuthenticationDatabase* m_authDb = NULL;
 
 // live555 is single-threaded: m_env, m_rtspServer and the server tables are touched only on the thread
 // that runs StreamRun(); calls from other threads are queued to it (and run directly while it is idle).
@@ -71,6 +74,7 @@ static const std::chrono::milliseconds CALL_TIMEOUT(10000);
 
 void StreamSetup(char* ipAdress);
 int  StreamSetupEx(char* ipAdress, int port);
+int  StreamSetupAuth(char* ipAdress, int port, char* userName, char* password);
 void StreamShutdown();
 void StreamRun();
 void announceStream(RTSPServer* rtspServer, ServerMediaSession* sms, char * streamName, wchar_t * inputFileName); // fwd
@@ -180,6 +184,13 @@ void StreamSetup(char* ipAdress)
 //**************************************************************************************
 int StreamSetupEx(char* ipAdress, int port)
 {
+  return StreamSetupAuth(ipAdress, port, NULL, NULL);
+}
+
+// With a user name every request of a client must carry the user name and the password (RTSP digest); without one the server is open
+// as before. NULL or an empty name means no authentication.
+int StreamSetupAuth(char* ipAdress, int port, char* userName, char* password)
+{
 	wchar_t folder[MAX_PATH];
 	wchar_t fileName[MAX_PATH];
 	::SHGetSpecialFolderPathW(NULL,folder,CSIDL_COMMON_APPDATA,FALSE);
@@ -201,10 +212,17 @@ int StreamSetupEx(char* ipAdress, int port)
 
 	TaskScheduler* scheduler = MPTaskScheduler::createNew();
 	m_env = BasicUsageEnvironment::createNew(*scheduler);
-	m_rtspServer = MPRTSPServer::createNew(*m_env, port);
+	m_authDb = MakeAuthDatabase(userName, password);
+	if (m_authDb != NULL)
+	{
+		LogDebug("Stream server:RTSP authentication is on");
+	}
+	m_rtspServer = MPRTSPServer::createNew(*m_env, port, m_authDb);
 	if (m_rtspServer == NULL) 
 	{
 		LogDebug("Stream server:Failed to create RTSP server: %s",m_env->getResultMsg());
+		delete m_authDb;
+		m_authDb = NULL;
 		return 1;
 	}
 	return 0; // ok
@@ -219,6 +237,8 @@ static void ShutdownOnEventThread()
     m_rtspServer = NULL;
     Medium::close(server);
   }
+  delete m_authDb;   // after the server: it may still use the database while it closes
+  m_authDb = NULL;
 
   if (m_env != NULL)
   {
