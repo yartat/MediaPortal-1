@@ -196,6 +196,7 @@ add_executable(mp_iptv_tests
   iptv/RtpTests.cpp
   iptv/HttpChunkTests.cpp
   iptv/UdpHttpTests.cpp
+  iptv/MemoryTests.cpp
   ../MPIPTVSource/MPIPTV_RTP/RtpPacket.cpp
   ../MPIPTVSource/MPIPTV_RTP/RtpSource.cpp
   ../MPIPTVSource/MPIPTVSource/LinearBuffer.cpp
@@ -322,6 +323,7 @@ if(MP_BUILD_LOCAL_TESTS)
     local/BdReaderTests.cpp
     local/LiveMediaPesTests.cpp
     local/FontEngineTests.cpp
+    local/D3dSharedHandleTests.cpp
   )
   target_include_directories(mp_local_tests PRIVATE ../shared ../DVBSubtitle3/Source ../LiveMedia555/MediaPortal integration local)
   target_link_libraries(mp_local_tests PRIVATE mp_common DvbCoreUtils LiveMedia555 BaseClasses winmm strmiids ole32 oleaut32 uuid d3d9 shell32 GTest::gtest GTest::gtest_main)

@@ -1638,10 +1638,9 @@ void MPMadPresenter::ReinitD3DDevice()
       m_pRenderTextureOsd.Release();
       m_pRenderTextureOsd.Release();
     }
+    // Shared handles of Direct3D 9Ex textures belong to the textures (released above) and are not closed with CloseHandle (CD-09)
     m_hSharedGuiHandle = nullptr;
     m_hSharedOsdHandle = nullptr;
-    CloseHandle(m_hSharedGuiHandle);
-    CloseHandle(m_hSharedOsdHandle);
   }
   catch (...)
   {
