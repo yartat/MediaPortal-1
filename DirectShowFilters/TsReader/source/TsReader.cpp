@@ -21,6 +21,7 @@
 
 #pragma warning(disable:4995)
 #include "StdAfx.h"
+#include "SourceName.h"
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -1285,9 +1286,8 @@ STDMETHODIMP CTsReaderFilter::Load(LPCOLESTR pszFileName,const AM_MEDIA_TYPE *pm
   m_bOnZap = false;
   m_bZapinProgress = false;
 
-  wcscpy(m_fileName, pszFileName);
   char url[MAX_PATH];
-  WideCharToMultiByte(CP_ACP, 0 ,m_fileName, -1, url, MAX_PATH, 0, 0);
+  if (FAILED(PrepareSourceName(pszFileName, m_fileName, _countof(m_fileName), url, sizeof(url)))) return E_INVALIDARG;
   //check file type
   size_t length=strlen(url);
   if ((length > 5) && (_strcmpi(&url[length-4], ".tsp") == 0))
@@ -1298,9 +1298,7 @@ STDMETHODIMP CTsReaderFilter::Load(LPCOLESTR pszFileName,const AM_MEDIA_TYPE *pm
 
     FILE* fd = fopen(url, "rb");
     if (fd == NULL) return E_FAIL;
-    fread(url, 1, 100, fd);
-    size_t bytesRead = fread(url, 1, sizeof(url), fd);
-    if (bytesRead >= 0) url[bytesRead] = 0;
+    ReadTspUrl(fd, url, sizeof(url));
     fclose(fd);
 
     LogDebug("open rtsp:%s", url);

@@ -577,6 +577,9 @@ HRESULT CDVBSub::ParseClut(CGolombBuffer& gb, WORD wSegLength)
 
         pClut->size = 0;
         while (gb.GetPos() < nEnd) {
+            if (pClut->size >= pClut->palette.size()) {
+                return E_UNEXPECTED;    // more entries than the palette holds
+            }
             nExpectedSize += 2;
             pClut->palette[pClut->size].entry_id = gb.ReadByte();
 
@@ -623,6 +626,10 @@ HRESULT CDVBSub::ParseObject(CGolombBuffer& gb, WORD wSegLength)
     if (m_pCurrentPage) {
         size_t nExpectedSize = 3;
         // size_t nEnd = gb.GetPos() + wSegLength;
+
+        if (wSegLength < nExpectedSize) {
+            return E_UNEXPECTED;    // shorter than the header of the object: "wSegLength - 3" would wrap around
+        }
 
         short id = gb.ReadShort();
         auto itObject = FindObject(m_pCurrentPage, id);

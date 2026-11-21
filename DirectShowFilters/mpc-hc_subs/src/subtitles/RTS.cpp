@@ -25,6 +25,7 @@
 #include <algorithm>
 #include "ColorConvTable.h"
 #include "RTS.h"
+#include "DrawingCoordinate.h"
 #include "../DSUtil/PathUtils.h"
 #include <ppl.h>
 #include "../filters/renderer/VideoRenderers/RenderersSettings.h"
@@ -679,11 +680,11 @@ bool CPolygon::GetPOINT(LPCWSTR& str, POINT& point) const
     LPWSTR xEnd = nullptr;
     LPWSTR yEnd = nullptr;
 
-    point.x = std::lround(wcstod(str, &xEnd) * m_scalex) * 64;
+    point.x = DrawingCoordinate(wcstod(str, &xEnd), m_scalex);
     if (xEnd <= str) {
         return false;
     }
-    point.y = std::lround(wcstod(xEnd, &yEnd) * m_scaley) * 64;
+    point.y = DrawingCoordinate(wcstod(xEnd, &yEnd), m_scaley);
 
     bool ret = yEnd > xEnd;
     str = yEnd;

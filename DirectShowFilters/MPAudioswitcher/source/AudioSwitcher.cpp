@@ -168,6 +168,8 @@ HRESULT CAudioSwitcherFilter::CheckMediaType(const CMediaType* pmt)
 
 	return (pmt->majortype == MEDIATYPE_Audio
 			&& pmt->formattype == FORMAT_WaveFormatEx
+			&& ((WAVEFORMATEX*)pmt->pbFormat)->nChannels > 0 // SW-01: Transform() divides by both
+			&& ((WAVEFORMATEX*)pmt->pbFormat)->nSamplesPerSec > 0
 			&& (((WAVEFORMATEX*)pmt->pbFormat)->wBitsPerSample == 8
 				|| ((WAVEFORMATEX*)pmt->pbFormat)->wBitsPerSample == 16
 				|| ((WAVEFORMATEX*)pmt->pbFormat)->wBitsPerSample == 24
@@ -243,6 +245,10 @@ HRESULT CAudioSwitcherFilter::Transform(IMediaSample* pIn, IMediaSample* pOut)
 	WAVEFORMATEXTENSIBLE* wfexout = (WAVEFORMATEXTENSIBLE*)wfeout;
 
 	int bps = wfe->wBitsPerSample>>3;
+
+	// SW-01: the input format was accepted by CheckMediaType, but never trust a format that is divided by
+	if(bps <= 0 || wfe->nChannels == 0 || wfe->nSamplesPerSec == 0)
+		return VFW_E_INVALIDMEDIATYPE;
 
 	int len = pIn->GetActualDataLength() / (bps*wfe->nChannels);
 	int lenout = len * wfeout->nSamplesPerSec / wfe->nSamplesPerSec;

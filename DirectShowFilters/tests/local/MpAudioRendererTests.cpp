@@ -152,10 +152,10 @@ TEST_F(MpAudioRenderer, ReconnectingWithAnotherFormatDoesNotCorruptTheHeap)
   Sleep(500);                                  // time for the render thread to touch the freed buffer
 }
 
-// KNOWN DEFECT (disabled): CopyWaveFormatEx copied sizeof(WAVEFORMATEXTENSIBLE) + cbSize = 62 bytes from a format of 40 bytes.
-// It is fixed (dllmain.cpp); this test passes a format block of exactly 40 bytes, which only AddressSanitizer or a guard page
-// can tell from a padded one, so it is enabled only for that kind of run.
-TEST_F(MpAudioRenderer, DISABLED_AFormatBlockOfExactlyTheRightSizeIsNeverReadBeyondItsEnd)
+// CopyWaveFormatEx used to copy sizeof(WAVEFORMATEXTENSIBLE) + cbSize = 62 bytes from a format of 40 bytes (fixed in dllmain.cpp).
+// This test passes a format block of exactly 40 bytes. It runs everywhere, but only an AddressSanitizer build can tell a read
+// beyond the block from a read of padding, so run it there too.
+TEST_F(MpAudioRenderer, AFormatBlockOfExactlyTheRightSizeIsNeverReadBeyondItsEnd)
 {
   PcmFormat f;
   CMediaType mt = f.MediaType();

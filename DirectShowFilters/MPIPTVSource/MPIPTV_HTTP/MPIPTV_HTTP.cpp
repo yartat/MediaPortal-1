@@ -23,6 +23,9 @@
 #include "MPIPTV_HTTP.h"
 #include "Network.h"
 #include "Utilities.h"
+#include "HttpChunk.h"
+#include "HttpRedirect.h"
+#include "../MPIPTV_UDP/UdpReceive.h"
 
 #include <stdio.h>
 
@@ -65,6 +68,7 @@ CMPIPTV_HTTP::CMPIPTV_HTTP()
   this->openConnetionMaximumAttempts = HTTP_OPEN_CONNECTION_MAXIMUM_ATTEMPTS_DEFAULT;
 
   this->defaultBufferSize = 0;
+  this->redirectCount = 0;
   this->maxBufferSize = 0;
 
   this->logger.Log(LOGGER_INFO, METHOD_END_FORMAT, PROTOCOL_IMPLEMENTATION_NAME, METHOD_CONSTRUCTOR_NAME);
@@ -112,8 +116,9 @@ int CMPIPTV_HTTP::Initialize(HANDLE lockMutex, CParameterCollection *configurati
   this->receiveDataTimeout = (this->receiveDataTimeout < 0) ? HTTP_RECEIVE_DATA_TIMEOUT_DEFAULT : this->receiveDataTimeout;
   this->openConnetionMaximumAttempts = (this->openConnetionMaximumAttempts < 0) ? HTTP_OPEN_CONNECTION_MAXIMUM_ATTEMPTS_DEFAULT : this->openConnetionMaximumAttempts;
 
-  this->defaultBufferSize = defaultMultiplier * iptvBufferSize;
-  this->maxBufferSize = maxMultiplier * iptvBufferSize;
+  UdpBufferSizes bufferSizes = ComputeUdpBufferSizes(iptvBufferSize, defaultMultiplier, maxMultiplier);
+  this->defaultBufferSize = bufferSizes.defaultSize;
+  this->maxBufferSize = bufferSizes.maxSize;
 
   this->lockMutex = lockMutex;
   if (this->lockMutex == NULL)
@@ -541,74 +546,6 @@ TCHAR* GetLine(char *source)
   return result;
 }
 
-// gets chunk data from buffer
-// data are returned to data variable
-// length of data returned to length variable
-// the whole chunk length returned to chunkLength variable
-// method returns TRUE if chunk correctly get, FALSE otherwise
-// 
-// necessary space needed for data is created in this method
-// this space after using have to be removed
-bool GetChunkData(LinearBuffer *buffer, char **data, unsigned int *length, unsigned int *chunkLength)
-{
-  bool result = false;
-  unsigned int firstEndLinePosition = buffer->GetFirstPosition(0, '\n');
-  if (firstEndLinePosition != UINT_MAX)
-  {
-    // there is some chance for chunk data header
-    unsigned int chunkHeaderDataLength = firstEndLinePosition + 2;
-    // chunk hedaer data with terminating null character
-    ALLOC_MEM_DEFINE_SET(chunkHeaderData, char, chunkHeaderDataLength, 0);
-
-    if (chunkHeaderData != NULL)
-    {
-      // copy header data from buffer
-      buffer->CopyFromBuffer(chunkHeaderData, chunkHeaderDataLength - 1, 0, 0);
-      char *chunkHeaderEndPart = NULL;
-
-      *length = strtol(chunkHeaderData, &chunkHeaderEndPart, 16);
-
-      //if ((*length > 0) && (strlen(chunkHeaderEndPart) == 2))
-      if (*length > 0)
-      {
-        // there valid length of chunk data and header is ended correctly with CRLF
-        // the last characters are always CRLF
-
-        // (chunkHeaderDataLength - 1) is the length of chunk data with terminating CRLF characters
-        // the chunk data must be ended with CRLF
-        // this size of chunk data is lenght + 2 (CRLF)
-        // there is no need to termination NULL character, because in data can be NULL characters
-        unsigned int chunkDataLength = (*length) + 2;
-
-        // now is known whole chunk length
-        *chunkLength = chunkHeaderDataLength - 1 + chunkDataLength;
-
-        if (buffer->GetBufferOccupiedSpace() >= (*chunkLength))
-        {
-          // there is enough data to process whole chunk
-          // allocate memory for chunk data
-          *data = ALLOC_MEM(char, *length);
-          if ((*data) != NULL)
-          {
-            buffer->CopyFromBuffer((*data), (*length), 0, chunkHeaderDataLength - 1);
-            result = TRUE;
-          }
-        }
-      }
-      else if (*length == 0)
-      {
-        // there is valid length
-        // zero length is signal for end of transmission
-        result = TRUE;
-      }
-    }
-
-    FREE_MEM(chunkHeaderData);
-  }
-
-  return result;
-}
-
 void CMPIPTV_HTTP::ReceiveData(bool *shouldExit)
 {
   if (this->IsConnected())
@@ -680,6 +617,15 @@ void CMPIPTV_HTTP::ReceiveData(bool *shouldExit)
                   this->logger.Log(LOGGER_INFO, METHOD_MESSAGE_FORMAT, PROTOCOL_IMPLEMENTATION_NAME, METHOD_RECEIVE_DATA_NAME, _T("redirection detected"));
                   this->receivedHttpResponse = FALSE;
 
+                  if (!HttpRedirectAllowed(this->redirectCount))
+                  {
+                    this->logger.Log(LOGGER_ERROR, METHOD_MESSAGE_FORMAT, PROTOCOL_IMPLEMENTATION_NAME, METHOD_RECEIVE_DATA_NAME, _T("too many redirects"));
+                    this->redirectCount = 0;
+                    FREE_MEM(line);
+                    this->CloseConnection();
+                    return;
+                  }
+
                   TCHAR *newUrl = NULL;
                   TCHAR *endOfLine = _tcschr(line, _T('\r'));
                   if (endOfLine != NULL)
@@ -722,6 +668,7 @@ void CMPIPTV_HTTP::ReceiveData(bool *shouldExit)
               if (httpReturnCode == 200)
               {
                 // OK
+                this->redirectCount = 0;
                 if (_tcsstr(line, _T("Transfer-Encoding: chunked")) != NULL)
                 {
                   this->logger.Log(LOGGER_INFO, METHOD_MESSAGE_FORMAT, PROTOCOL_IMPLEMENTATION_NAME, METHOD_RECEIVE_DATA_NAME, _T("chunked encoding"));

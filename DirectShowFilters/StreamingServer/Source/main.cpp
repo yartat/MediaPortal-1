@@ -8,6 +8,7 @@
 #include "MPTaskScheduler.h"
 #include "TsMPEG2TransportFileServerMediaSubsession.h" 
 #include "MPRTSPServer.h"
+#include "EventThreadCalls.h"
 #include <sstream>
 #include <iomanip>  // setfill(), setw()
 
@@ -63,6 +64,11 @@ const int	DEFAULT_RTSP_PORT = 554;
 UsageEnvironment* m_env;
 MPRTSPServer*			m_rtspServer;
 
+// live555 is single-threaded: m_env, m_rtspServer and the server tables are touched only on the thread
+// that runs StreamRun(); calls from other threads are queued to it (and run directly while it is idle).
+static EventThreadCalls g_calls;
+static const std::chrono::milliseconds CALL_TIMEOUT(10000);
+
 void StreamSetup(char* ipAdress);
 int  StreamSetupEx(char* ipAdress, int port);
 void StreamShutdown();
@@ -98,8 +104,14 @@ int main(int argc, char* argv[])
 void StreamGetClientCount(int* clients)
 {
 	*clients=0;
-	if (m_rtspServer==NULL) return ;
-	*clients = m_rtspServer->GetSessionCount();
+	std::shared_ptr<int> count = std::make_shared<int>(0);
+	if (g_calls.Call([count]()
+	{
+		if (m_rtspServer != NULL) *count = m_rtspServer->GetSessionCount();
+	}, CALL_TIMEOUT))
+	{
+		*clients = *count;
+	}
 }
 
 //**************************************************************************************
@@ -112,32 +124,48 @@ void StreamGetClientDetail(unsigned short index, char** ipAddress, char** stream
   *isActive = 0;
   *connectionTickCount = 0;
 
-  if (m_rtspServer == NULL)
+  struct Detail { bool found; int active; long ticks; };
+  std::shared_ptr<Detail> detail = std::make_shared<Detail>();
+  detail->found = false;
+  detail->active = 0;
+  detail->ticks = 0;
+  bool done = g_calls.Call([index, detail]()
   {
-    return;
-  }
-  MPRTSPServer::MPRTSPClientSession* client = m_rtspServer->GetSessionByIndex(index);
-  if (client == NULL)
-  {
-    return;
-  }
+    if (m_rtspServer == NULL)
+    {
+      return;
+    }
+    MPRTSPServer::MPRTSPClientSession* client = m_rtspServer->GetSessionByIndex(index);
+    if (client == NULL)
+    {
+      return;
+    }
 
-  struct sockaddr_in clientAddress = client->ClientAddress();
-  sprintf(szIpAddress, "%d.%d.%d.%d",
-          clientAddress.sin_addr.S_un.S_un_b.s_b1,
-          clientAddress.sin_addr.S_un.S_un_b.s_b2,
-          clientAddress.sin_addr.S_un.S_un_b.s_b3,
-          clientAddress.sin_addr.S_un.S_un_b.s_b4);
+    struct sockaddr_in clientAddress = client->ClientAddress();
+    sprintf_s(szIpAddress, "%d.%d.%d.%d",
+              clientAddress.sin_addr.S_un.S_un_b.s_b1,
+              clientAddress.sin_addr.S_un.S_un_b.s_b2,
+              clientAddress.sin_addr.S_un.S_un_b.s_b3,
+              clientAddress.sin_addr.S_un.S_un_b.s_b4);
+
+    const char* sid = client->StreamId();
+    if (sid != NULL)
+    {
+      strncpy_s(szStreamId, sid, _TRUNCATE);
+    }
+    detail->active = client->IsPaused() ? 0 : 1;
+    detail->ticks = (long)client->StartDateTime();
+    detail->found = true;
+  }, CALL_TIMEOUT);
+
+  if (!done || !detail->found)
+  {
+    return;
+  }
   *ipAddress = &szIpAddress[0];
-
-  const char* sid = client->StreamId();
-  if (sid != NULL)
-  {
-    strcpy(szStreamId, sid);
-  }
   *streamId = &szStreamId[0];
-  *isActive = client->IsPaused() ? 0 : 1;
-  *connectionTickCount = client->StartDateTime();
+  *isActive = detail->active;
+  *connectionTickCount = detail->ticks;
 }
 
 //**************************************************************************************
@@ -182,7 +210,7 @@ int StreamSetupEx(char* ipAdress, int port)
 	return 0; // ok
 }
 //**************************************************************************************
-void StreamShutdown()
+static void ShutdownOnEventThread()
 {
   if (m_rtspServer != NULL)
   {
@@ -202,53 +230,71 @@ void StreamShutdown()
     delete scheduler;
   }
 }
+
+void StreamShutdown()
+{
+  g_calls.Call(ShutdownOnEventThread, CALL_TIMEOUT);
+}
 //**************************************************************************************
 void StreamRun()
 {
+	g_calls.Enter();
 	for (int i=0; i < 10;++i)
+	{
+		g_calls.Drain();
+		if (m_env == NULL) break;
 		m_env->taskScheduler().doEventLoop(); 
+	}
+	g_calls.Leave();
 }
 
 //**************************************************************************************
 void StreamRemove( char* streamName)
 {
 	LogDebug("Stream server:Stream server: remove stream %s", streamName);
-	m_rtspServer->removeServerMediaSession(streamName);
+	std::string name(streamName);
+	g_calls.Call([name]()
+	{
+		if (m_rtspServer != NULL) m_rtspServer->removeServerMediaSession(name.c_str());
+	}, CALL_TIMEOUT);
+}
+
+//**************************************************************************************
+// Copies the arguments (the caller's buffers are gone once a timed-out call returns) and adds the stream on the event thread
+static void AddFileOnEventThread(const char* streamName, const wchar_t* fileName, bool timeShift, int channelType)
+{
+	std::string name(streamName);
+	std::wstring file(fileName);
+	g_calls.Call([name, file, timeShift, channelType]()
+	{
+		try
+		{
+			if (m_env == NULL || m_rtspServer == NULL) return;
+			LogDebug(timeShift ? L"Stream server: add timeshift  mpeg-2 transport stream %S filename:%s"
+			                   : L"Stream server: add mpeg-2 ts stream %S filename:%s", name.c_str(), file.c_str());
+			ServerMediaSession* sms= ServerMediaSession::createNew(*m_env, name.c_str(), name.c_str(),STREAM_DESCRIPTION,false);
+			sms->addSubsession(TsMPEG2TransportFileServerMediaSubsession::createNew(*m_env, file.c_str(), false,timeShift,channelType));
+			m_rtspServer->addServerMediaSession(sms);
+
+			announceStream(m_rtspServer, sms, (char*)name.c_str(), (wchar_t*)file.c_str());
+		}
+		catch(...)
+		{
+			LogDebug(L"Stream server: unable to add stream %S filename:%s", name.c_str(), file.c_str());
+		}
+	}, CALL_TIMEOUT);
 }
 
 //**************************************************************************************
 void StreamAddTimeShiftFile(char* streamName, wchar_t* fileName,bool isProgramStream,int channelType)
 {
-	try
-	{
-		LogDebug(L"Stream server: add timeshift  mpeg-2 transport stream %S filename:%s", streamName,fileName);
-		ServerMediaSession* sms= ServerMediaSession::createNew(*m_env, streamName, streamName,STREAM_DESCRIPTION,false);
-		sms->addSubsession(TsMPEG2TransportFileServerMediaSubsession::createNew(*m_env, fileName, false,true,channelType));
-		m_rtspServer->addServerMediaSession(sms);
-
-		announceStream(m_rtspServer, sms, streamName, fileName);
-	}
-	catch(...)
-	{
-		LogDebug(L"Stream server: unable to add stream %S filename:%s", streamName,fileName);
-	}
+	AddFileOnEventThread(streamName, fileName, true, channelType);
 }
 
 //**************************************************************************************
 void StreamAddMpegFile(char* streamName, wchar_t* fileName, int channelType)
 {
-	try
-	{
-		LogDebug(L"Stream server: add mpeg-2 ts stream %S filename:%s", streamName,fileName);
-		ServerMediaSession* sms= ServerMediaSession::createNew(*m_env, streamName, streamName,STREAM_DESCRIPTION,false);
-		sms->addSubsession(TsMPEG2TransportFileServerMediaSubsession::createNew(*m_env, fileName, false,false,channelType));
-		m_rtspServer->addServerMediaSession(sms);
-		announceStream(m_rtspServer, sms, streamName, fileName);
-	}
-	catch(...)
-	{
-		LogDebug(L"Stream server: unable to add stream %S filename:%s", streamName,fileName);
-	}
+	AddFileOnEventThread(streamName, fileName, false, channelType);
 }
 
 //**************************************************************************************

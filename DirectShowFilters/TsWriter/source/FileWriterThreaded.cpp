@@ -45,6 +45,7 @@
 #include <streams.h>
 #include <process.h>
 #include "FileWriterThreaded.h"
+#include "PartName.h"
 
 extern void LogDebug(const char *fmt, ...) ;
 extern void LogDebug(const wchar_t *fmt, ...) ;
@@ -282,22 +283,8 @@ HRESULT FileWriterThreaded::WriteWithRetry(PBYTE pbData, ULONG lDataLength, int 
         m_hFile=INVALID_HANDLE_VALUE;
     
         //create a new file
-        wchar_t ext[MAX_PATH];
-        wchar_t fileName[MAX_PATH];
-        wchar_t part[100];
-        int len=wcslen(m_pFileName)-1;
-        int pos=len-1;
-        while (pos>0)
-        {
-          if (m_pFileName[pos]==L'.') break;
-          pos--;
-        }
-        wcscpy(ext, &m_pFileName[pos]);
-        wcsncpy(fileName, m_pFileName, pos);
-        fileName[pos]=0;
-        swprintf_s(part,L"_p%d",m_iPart);
         wchar_t newFileName[MAX_PATH];
-        swprintf_s(newFileName,L"%s%s%s",fileName,part,ext);
+        BuildNextPartName(m_pFileName, m_iPart, newFileName, MAX_PATH);
         LogDebug(L"FileWriterThreaded:Create new file part:'%s' %d",newFileName);
         m_hFile = CreateFileW(newFileName,              // The filename
                     (DWORD) GENERIC_WRITE,              // File access

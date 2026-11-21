@@ -87,7 +87,10 @@ MPRTSPServer::MPRTSPServer(UsageEnvironment& env,
 
 MPRTSPServer::~MPRTSPServer()
 {
-  m_clientSessions.clear();
+  // RS-01: RTSPServer::~RTSPServer() deletes the remaining sessions when this map is already gone, and ~MPRTSPClientSession
+  // erases itself from it. Delete them here, while the map exists (each one erases itself from the map).
+  while (!m_clientSessions.empty())
+    delete m_clientSessions.begin()->second;
 }
 
 GenericMediaServer::ClientConnection* MPRTSPServer::createNewClientConnection(int clientSocket, struct sockaddr_storage const& clientAddr)

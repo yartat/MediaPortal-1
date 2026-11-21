@@ -22,8 +22,8 @@ filter, no DLL and no graph): `mp_tsmuxer_tests`, `mp_tsreader_tests` and `mp_ts
 `tswriter`), see "Tests of TsMuxer, TsReader and TsWriter" below.
 
 Last result (VS 2026, all four presets, Debug): 226 unit, 110 integration, 48 to 49 local, 39 TsMuxer, 109 TsReader and 84
-TsWriter tests pass. The same programs pass under AddressSanitizer (Release). The only disabled test (`DISABLED_`) is
-`MpAudioRenderer.DISABLED_AFormatBlockOfExactlyTheRightSizeIsNeverReadBeyondItsEnd`, which only an ASan build can judge, see
+TsWriter tests pass. The same programs pass under AddressSanitizer (Release). No test is disabled any more;
+`MpAudioRenderer.AFormatBlockOfExactlyTheRightSizeIsNeverReadBeyondItsEnd` only means something under ASan, see
 "Found by the tests".
 
 ## Unit tests (`unit/`, `mp_unit_tests`)
@@ -91,6 +91,11 @@ cmake --preset vs2026-x64-unicode -DMP_BUILD_TESTS=ON -DMP_BUILD_LOCAL_TESTS=ON 
 cmake --build --preset vs2026-x64-unicode-debug --target mp_local_tests
 ctest --test-dir build/vs2026-x64-unicode -C Debug -L local --output-on-failure
 ```
+
+`mp_subs_heavy_tests` (same switch, label `local`) holds the huge vector drawings of SECURITY_AUDIT.md MS-06
+(`subs/DrawingOverlayHeavyTests.cpp`: 65 552 x 65 536, 40 000 x 40 000 and 100 000 x 100 000 pixels). Each case runs
+in a child process and needs several GB of memory and a 64-bit build, so it never runs in CI:
+`ctest --test-dir build/vs2026-x64-unicode -C Release -R DrawingOverlayHeavy --output-on-failure`.
 
 The samples folder is `MP_SAMPLES_DIR` (CMake cache variable, or the environment variable of the same name at run
 time); by default `<repository>/../MP-MediaInfo.Samples` when it exists. `MP_MPCSUBS_DLL` can point to another
@@ -275,9 +280,8 @@ read past the end of a buffer without ASan.
     HRESULTs like `FileReader`; `CDiskBuff::Add` took a negative length.
   * Win7RefreshRateHelper: `DEVMODE` and `DISPLAY_DEVICE` were not initialised; in an optimised build monitor 99 got the rate of
     the previous call (240 instead of -1). A monitor that is not there gives -1.
-  * Left disabled on purpose: `MpAudioRenderer.DISABLED_AFormatBlockOfExactlyTheRightSizeIsNeverReadBeyondItsEnd`. The defect
-    (`CopyWaveFormatEx`) is fixed; the test passes a format block of exactly the right size, which only ASan or a guard page can
-    tell from a padded one.
+  * `MpAudioRenderer.AFormatBlockOfExactlyTheRightSizeIsNeverReadBeyondItsEnd`: the defect (`CopyWaveFormatEx`) is fixed; the
+    test passes a format block of exactly the right size, which only ASan or a guard page can tell from a padded one.
 
 ## Next steps (not done)
 

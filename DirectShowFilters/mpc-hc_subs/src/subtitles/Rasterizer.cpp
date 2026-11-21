@@ -442,6 +442,12 @@ bool Rasterizer::ScanConvert()
             return true;
         }
 
+        // MS-06: the size comes from the drawing in the file; a picture wider or higher than 16384 pixels is not drawn
+        if ((__int64)maxx + 1 - minx > 16384 || (__int64)maxy + 1 - miny > 16384) {
+            _TrashPath();
+            return true;
+        }
+
         m_pOutlineData->mWidth = maxx + 1 - minx;
         m_pOutlineData->mHeight = maxy + 1 - miny;
         m_pOutlineData->mPathOffsetX = minx;
@@ -874,6 +880,13 @@ bool Rasterizer::Rasterize(int xsub, int ysub, int fBlur, double fGaussianBlur)
     // fixed image height
     m_pOverlayData->mOverlayHeight = ((height + 14) >> 3) + 1;
     m_pOverlayData->mOverlayPitch = (m_pOverlayData->mOverlayWidth + 15) & ~15; // Round the next multiple of 16
+
+    // MS-06: pitch * height is computed in int below
+    if (m_pOverlayData->mOverlayWidth <= 0 || m_pOverlayData->mOverlayHeight <= 0
+            || (__int64)m_pOverlayData->mOverlayPitch * m_pOverlayData->mOverlayHeight > 0x7fffffff) {
+        m_pOverlayData = nullptr;
+        return false;
+    }
 
     m_pOverlayData->mpOverlayBufferBody = (byte*)_aligned_malloc(m_pOverlayData->mOverlayPitch * m_pOverlayData->mOverlayHeight, 16);
     m_pOverlayData->mpOverlayBufferBorder = (byte*)_aligned_malloc(m_pOverlayData->mOverlayPitch * m_pOverlayData->mOverlayHeight, 16);
@@ -1887,7 +1900,16 @@ RECT Rasterizer::Draw(SubPicDesc& spd, RECT& clipRect, byte* pAlphaMask, int xsu
 
 void Rasterizer::FillSolidRect(SubPicDesc& spd, int x, int y, int nWidth, int nHeight, DWORD lColor) const
 {
-    ASSERT(spd.w >= x + nWidth && spd.h >= y + nHeight);
+    // x, y and the run lengths come from the subtitle stream: clip the rectangle to the bitmap
+    const int right = (std::min)(x + nWidth, spd.w);
+    const int bottom = (std::min)(y + nHeight, spd.h);
+    x = (std::max)(x, 0);
+    y = (std::max)(y, 0);
+    if (x >= right || y >= bottom) {
+        return;
+    }
+    nWidth = right - x;
+    nHeight = bottom - y;
     BYTE* dst = (BYTE*)((DWORD*)(spd.bits + spd.pitch * y) + x);
     DrawInternal(m_bUseAVX2, dst, spd.pitch, BYTE(0x40), nWidth, nHeight, lColor);
 }

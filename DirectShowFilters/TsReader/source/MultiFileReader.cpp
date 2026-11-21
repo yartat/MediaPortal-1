@@ -698,12 +698,16 @@ HRESULT MultiFileReader::RefreshTSBufferFile()
   
   		LPWSTR pCurr = (LPWSTR)(m_pInfoFileBuffer2 + sizeof(__int64) + sizeof(long) + sizeof(long)); //pointer to start of filename section
   		LPWSTR pEndOfList = (LPWSTR)(m_pInfoFileBuffer2 + fileLength - (2*sizeof(long)));
-  		long length = (long)wcslen(pCurr);
-  		while ((length > 0) && (pCurr < pEndOfList))
+  		// TR-05: never read behind the end of the file; a name without a terminator ends the list
+  		long length = (pCurr < pEndOfList) ? (long)wcsnlen(pCurr, pEndOfList - pCurr) : 0;
+  		while ((length > 0) && (pCurr < pEndOfList) && (pCurr + length < pEndOfList))
   		{
   			//modify filename path here to include the real path
   			LPWSTR pFilename;
   			LPWSTR temp = wcsrchr(pCurr, 92); //Find the last backslash character, so we can extract just the 'filename' part
+  			LPWSTR tempSlash = wcsrchr(pCurr, 47); // TR-05: a forward slash separates as well
+  			if (tempSlash > temp)
+  				temp = tempSlash;
   			if (path && temp)
   			{
   				temp++;
@@ -720,7 +724,7 @@ HRESULT MultiFileReader::RefreshTSBufferFile()
   			filenames.push_back(pFilename);
   
   			pCurr += (length + 1);
-  			length = (long)wcslen(pCurr);
+  			length = (pCurr < pEndOfList) ? (long)wcsnlen(pCurr, pEndOfList - pCurr) : 0;
   		}
   
   		if (path)

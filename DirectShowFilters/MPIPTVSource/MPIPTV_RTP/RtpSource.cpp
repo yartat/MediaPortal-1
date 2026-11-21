@@ -110,7 +110,7 @@ bool RtpSource::AddPacket(RtpPacket *rtpPacket)
         else if (secondPacket != NULL)
         {
           // rtpPacket is before second packet ?
-          between &= (this->PacketSequenceNumberDifference(rtpPacket, secondPacket) <= 0);
+          between &= (this->PacketSequenceNumberDifference(rtpPacket, secondPacket) >= 0);
         }
 
         if (between)
@@ -404,9 +404,15 @@ bool RtpSource::ProcessPacket(char *buffer, unsigned int length)
   if (!rtpPacket->IsRtpPacket())
   {
     // some problem occured
+    delete rtpPacket;
     return false;
   }
-  return (this->AddPacket(rtpPacket));
+  if (!this->AddPacket(rtpPacket))
+  {
+    delete rtpPacket;
+    return false;
+  }
+  return true;
 }
 
 int RtpSource::PacketSequenceNumberDifference(RtpPacket *firstPacket, RtpPacket *secondPacket)

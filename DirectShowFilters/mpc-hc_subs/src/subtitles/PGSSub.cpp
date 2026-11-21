@@ -371,7 +371,8 @@ void CPGSSub::UpdateTimeStamp(REFERENCE_TIME rtStop)
 
 void CPGSSub::ParsePalette(CGolombBuffer* pGBuffer, size_t nSize)  // #497
 {
-    if ((nSize - 2) % sizeof(HDMV_PALETTE) != 0) {
+    // nSize comes from the stream: a segment shorter than the header, or with more entries than the palette holds, is refused
+    if (nSize < 2 || (nSize - 2) % sizeof(HDMV_PALETTE) != 0 || (nSize - 2) / sizeof(HDMV_PALETTE) > m_CLUTs[0].palette.size()) {
         ASSERT(FALSE);
         return;
     }
@@ -416,6 +417,10 @@ void CPGSSub::ParseObject(CGolombBuffer* pGBuffer, size_t nUnitSize)   // #498
         }
 
         int object_data_length = (int)pGBuffer->BitRead(24);
+        // the length comes from the stream: it holds the size fields (4 bytes), and an object of more than 4 MB is not accepted
+        if (nUnitSize < 11 || object_data_length < 4 || object_data_length - 4 > 4 * 1024 * 1024) {
+            return;
+        }
 
         pObject.m_width = pGBuffer->ReadShort();
         pObject.m_height = pGBuffer->ReadShort();

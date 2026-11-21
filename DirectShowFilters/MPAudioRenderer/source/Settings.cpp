@@ -23,6 +23,7 @@
 
 #include "alloctracing.h"
 #include "../../shared/TcharConv.h"
+#include "DeviceId.h"
 
 unsigned int gAllowedAC3bitrates[9]         = {192, 224, 256, 320, 384, 448, 512, 576, 640};
 unsigned int gAllowedSampleRates[7]         = {22050, 32000, 44100, 48000, 88200, 96000, 192000};
@@ -165,7 +166,7 @@ void AudioRendererSettings::LoadSettingsFromRegistry()
 
   LPCTSTR WASAPIPreferredDeviceData = new TCHAR[MAX_REG_LENGTH];
 
-  ZeroMemory((void*)WASAPIPreferredDeviceData, MAX_REG_LENGTH);
+  ZeroMemory((void*)WASAPIPreferredDeviceData, MAX_REG_LENGTH * sizeof(TCHAR)); // AR-01: the whole buffer, not half of it
 
   // Try to access the setting root "Software\Team MediaPortal\Audio Renderer"
   RegOpenKeyEx(HKEY_CURRENT_USER, folder, NULL, KEY_ALL_ACCESS, &hKey);
@@ -407,7 +408,7 @@ void AudioRendererSettings::LoadSettingsFromRegistry()
     delete[] m_wWASAPIPreferredDeviceId;
     m_wWASAPIPreferredDeviceId = new WCHAR[MAX_REG_LENGTH];
     
-    wcsncpy(m_wWASAPIPreferredDeviceId, ToWide(WASAPIPreferredDeviceData).c_str(), MAX_REG_LENGTH);
+    CopyDeviceId(m_wWASAPIPreferredDeviceId, MAX_REG_LENGTH, ToWide(WASAPIPreferredDeviceData).c_str());
 
     delete[] WASAPIPreferredDeviceData;
   }
@@ -454,7 +455,7 @@ void AudioRendererSettings::LoadSettingsFromRegistry()
 
       delete[] m_wWASAPIPreferredDeviceId;
       m_wWASAPIPreferredDeviceId = new WCHAR[MAX_REG_LENGTH];
-      wcsncpy(m_wWASAPIPreferredDeviceId, ToWide(WASAPIPreferredDeviceData).c_str(), MAX_REG_LENGTH);
+      CopyDeviceId(m_wWASAPIPreferredDeviceId, MAX_REG_LENGTH, ToWide(WASAPIPreferredDeviceData).c_str());
 
       WriteRegistryKeyString(hKey, WASAPIPreferredDevice, WASAPIPreferredDeviceData);
     } 
@@ -571,7 +572,7 @@ void AudioRendererSettings::WriteRegistryKeyDword(HKEY hKey, LPCTSTR& lpSubKey, 
 void AudioRendererSettings::ReadRegistryKeyString(HKEY hKey, LPCTSTR& lpSubKey, LPCTSTR& data)
 {
 
-  DWORD dwSize = MAX_REG_LENGTH;
+  DWORD dwSize = (MAX_REG_LENGTH - 1) * sizeof(TCHAR); // AR-01: the last character of the buffer stays the terminator
   DWORD dwType = REG_SZ;
   LONG error = RegQueryValueEx(hKey, lpSubKey, NULL, &dwType, (PBYTE)data, &dwSize);
   

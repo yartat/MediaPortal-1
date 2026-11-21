@@ -106,6 +106,11 @@ DWORD CcParseH264::parseAVC1sample (const BYTE* pData, DWORD sampleLength, DWORD
   	  return cc_bytes_in_buffer;
     }
       
+    if (dwNalLength == 0)  // an empty NAL has no header byte to look at; "dwNalLength-1" below would wrap around
+    {
+      continue;
+    }
+
     if ( (*pSample & 0x1F) == 0x06 )  //SEI data nal_unit_type
     {
       // Found SEI (used for subtitles) - lets process it
@@ -224,32 +229,38 @@ void CcParseH264::sei_rbsp (unsigned char *seibuf, int Length)
 // This combines sei_message() and sei_payload().
 unsigned char *CcParseH264::sei_message (unsigned char *seibuf, unsigned char *seiend)
 {
+  // seiend points at the last byte that may be read (the caller passes the end of the buffer minus the trailing byte).
+  // A message that is cut off returns seiend + 1, which the caller reports as an unexpected length.
   int payloadType = 0;
-	while (*seibuf==0xff)
+	while (seibuf <= seiend && *seibuf==0xff)
 	{
 		payloadType+=255;
 		seibuf++;
 	}
+  if (seibuf > seiend)
+    return seiend + 1;
   payloadType += *seibuf;
 	seibuf++;
 
   int payloadSize = 0;
-	while (*seibuf==0xff)
+	while (seibuf <= seiend && *seibuf==0xff)
 	{
 		payloadSize+=255;
 		seibuf++;
 	}
+  if (seibuf > seiend)
+    return seiend + 1;
   payloadSize += *seibuf;
 	seibuf++;
 
 	int broken=0;
   unsigned char *paystart = seibuf;
-  seibuf+=payloadSize;
 
-	if(seibuf > seiend )
+	if(payloadSize > seiend - seibuf)
 	{
 		// TODO: What do we do here?
 		broken=1;
+		seibuf = paystart;
 		if (payloadSize == 0)  //Probably due to leading zero of (next) four byte NAL start code, following 0x80 trailing byte of this SEI
 		{
 		  *(seibuf-1) = 0x80; //trailing zero byte is spurious - replace with 0x80 and adjust pointer to keep caller happy...
@@ -263,7 +274,9 @@ unsigned char *CcParseH264::sei_message (unsigned char *seibuf, unsigned char *s
 		{
 			LogDebug ("CcParseH264: sei_message() - Warning: Non-subtitle payload seems incorrect (too long)- Payload type: %d size: %d - seibuf: %d, seiend: %d", payloadType, payloadSize, seibuf, seiend);
 		}
+		return seiend + 1;
 	}
+	seibuf += payloadSize;
 	
   // Ignore all except user_data_registered_itu_t_t35() payload
   if(!broken && payloadType == 4)
@@ -343,6 +356,11 @@ void CcParseH264::user_data_registered_itu_t_t35 (unsigned char *userbuf, unsign
 	int user_data_len;
 	int local_cc_count=0;
 	// int cc_count;
+  if (userend - userbuf < 8)  // country and provider code (3 bytes) and the identifier and type code that follow are read below
+  {
+    LogDebug ("CcParseH264: udr_itu_t_t35() - user data too short: %d", (int)(userend - userbuf));
+    return;
+  }
   int itu_t_t35_country_code = *((byte*)tbuf);
   tbuf++;
   int itu_t_35_provider_code = *tbuf * 256 + *(tbuf+1);
@@ -377,6 +395,8 @@ void CcParseH264::user_data_registered_itu_t_t35 (unsigned char *userbuf, unsign
 				tbuf+=4;
 				unsigned char user_data_type_code=*tbuf;
 				tbuf++;
+				if (tbuf >= userend)
+					return;
 				switch (user_data_type_code)
 				{
 					case 0x03:

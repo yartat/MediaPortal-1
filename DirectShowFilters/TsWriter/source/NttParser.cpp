@@ -678,7 +678,7 @@ void CNttParser::DecodeMultilingualText(byte* b, int length, char** string)
     LogDebug("NttParser: invalid multilingual text length = %d", length);
     return;
   }
-  *string = new char[length + 1];
+  *string = new char[length + 1]();
   if (*string == NULL)
   {
     LogDebug("NttParser: failed to allocate memory in DecodeMultilingualText()");
@@ -702,7 +702,7 @@ void CNttParser::DecodeMultilingualText(byte* b, int length, char** string)
     if (mode == 0)
     {
       // We only support ASCII encoding at this time.
-      memcpy(*string, &b[pointer], segment_length);
+      memcpy(*string + stringOffset, &b[pointer], segment_length);
       stringOffset += segment_length;
       pointer += segment_length;
       (*string)[stringOffset] = 0;  // NULL terminate

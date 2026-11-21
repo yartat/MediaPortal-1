@@ -101,6 +101,11 @@ bool CVobSubImage::Decode(BYTE* _lpData, size_t _packetSize, size_t _dataSize, i
                           RGBQUAD* _orgpal /*[16]*/, RGBQUAD* _cuspal /*[4]*/,
                           bool _bTrim)
 {
+    // the control block (4 bytes and a command) must be inside the packet: offsets and sizes come from the file
+    if (_dataSize + 5 > _packetSize) {
+        return false;
+    }
+
     GetPacketInfo(_lpData, _packetSize, _dataSize, _t);
 
     if (!Alloc(RectWidth(rect), RectHeight(rect))) {
@@ -119,7 +124,7 @@ bool CVobSubImage::Decode(BYTE* _lpData, size_t _packetSize, size_t _dataSize, i
 
     POINT p = RectTopLeft(rect);
 
-    size_t end[] = { nOffset[1], _dataSize };
+    size_t end[] = { std::min(nOffset[1], _dataSize), _dataSize };
 
     while (nOffset[nPlane] < end[nPlane]) {
         DWORD code;
@@ -163,6 +168,9 @@ void CVobSubImage::GetPacketInfo(const BYTE* lpData, size_t packetSize, size_t d
     WORD nPal = 0, nTr = 0;
 
     do {
+        if (nextctrlblk + 5 > packetSize) {
+            return;
+        }
         i = nextctrlblk;
 
         tCurrent = 1024 * ((lpData[i] << 8) | lpData[i + 1]) / 90;

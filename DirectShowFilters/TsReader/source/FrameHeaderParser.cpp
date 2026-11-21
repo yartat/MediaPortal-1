@@ -1414,6 +1414,7 @@ bool CFrameHeaderParser::Read(avchdr& h, int len, CMediaType* pmt, bool reset)
 			gb.SExpGolombRead(); // offset_for_non_ref_pic
 			gb.SExpGolombRead(); // offset_for_top_to_bottom_field
 			UINT64 num_ref_frames_in_pic_order_cnt_cycle = gb.UExpGolombRead();
+			if (num_ref_frames_in_pic_order_cnt_cycle > 255) { free(buff); return(false); } // H.264 allows 255; more is an endless loop on damaged data
 			for(int i = 0; i < num_ref_frames_in_pic_order_cnt_cycle; i++)
 				gb.SExpGolombRead(); // offset_for_ref_frame[i]
 		}

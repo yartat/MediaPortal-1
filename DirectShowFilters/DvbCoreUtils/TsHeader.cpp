@@ -31,6 +31,7 @@ extern void LogDebug(const char *fmt, ...) ;
 
 CTsHeader::CTsHeader()
 {
+	Decode(NULL);
 }
 CTsHeader::CTsHeader(const byte* tsPacket)
 {
@@ -59,6 +60,11 @@ bool CTsHeader::AdaptionFieldAndPayLoad()
 void CTsHeader::Decode(const byte *data)
 {
 	m_packet=(byte*)data;
+	// TS-01: no member stays uninitialised, whatever the packet looks like
+	SyncByte=0; TransportError=false; PayloadUnitStart=false; TransportPriority=false; Pid=0; TScrambling=0;
+	AdaptionControl=0; ContinuityCounter=0; AdaptionFieldLength=0; PayLoadStart=0; HasAdaptionField=false; HasPayload=false;
+	if (!data)
+		return;
   //47 40 d2 10
 	//															bits  byteNo		mask
 	//SyncByte											:	8			0				0xff  11111111
@@ -101,6 +107,8 @@ void CTsHeader::Decode(const byte *data)
         if((5 + AdaptionFieldLength) < 188)
           PayLoadStart=5+AdaptionFieldLength;
 	}
+	if (HasPayload && HasAdaptionField && 5+AdaptionFieldLength >= 188) // TS-01: the adaption field fills the packet
+		HasPayload=false;
 	if (PayloadUnitStart && !HasPayload)
 		PayloadUnitStart=false;
 }

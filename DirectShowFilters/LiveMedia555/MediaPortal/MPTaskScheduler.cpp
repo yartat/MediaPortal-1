@@ -38,5 +38,5 @@ MPTaskScheduler::~MPTaskScheduler()
 void MPTaskScheduler::doEventLoop(EventLoopWatchVariable* watchVariable)
 {
   // Handle readble sockets and timed events:
-  SingleStep(1000000LL);  // unit = micro seconds
+  SingleStep(100000LL);  // unit = micro seconds; short, because calls queued from other threads (EventThreadCalls) wait for the next step
 }

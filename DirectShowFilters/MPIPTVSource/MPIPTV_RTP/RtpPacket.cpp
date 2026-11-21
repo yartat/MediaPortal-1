@@ -159,7 +159,7 @@ unsigned int RtpPacket::GetPaddingLength(void)
 
   if (this->length >= RTP_HEADER_SIZE)
   {
-    result = (this->IsPadding()) ? ((unsigned int)(*(this->data + this->length - 1))) : 0;
+    result = (this->IsPadding()) ? ((unsigned int)(unsigned char)(*(this->data + this->length - 1))) : 0;
   }
 
   return result;
@@ -700,7 +700,8 @@ bool RtpPacket::IsRtpPacket()
       (this->GetSequenceNumber() != UINT_MAX) &&
       (this->GetTimestamp() != UINT_MAX) &&
       (this->GetSourceIdentifier() != UINT_MAX) &&
-      (this->GetExtensionHeaderLength() != UINT_MAX))
+      (this->GetExtensionHeaderLength() != UINT_MAX) &&
+      (this->GetDataLength() != UINT_MAX))
   {
     result = true;
     if (this->IsExtensionHeader())

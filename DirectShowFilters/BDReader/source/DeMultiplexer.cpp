@@ -25,6 +25,7 @@
 #include <streams.h>
 #include <wmcodecdsp.h>
 #include "demultiplexer.h"
+#include "AudioPes.h"
 #include <bluray.h>
 #include "..\..\shared\adaptionfield.h"
 #include "bdreader.h"
@@ -697,7 +698,7 @@ void CDeMultiplexer::FillAudio(CTsHeader& header, byte* tsPacket)
         WAVEFORMATEX* wfe = (WAVEFORMATEX*)m_audioParser->pmt.pbFormat;
         if (wfe)
         {
-          REFERENCE_TIME duration = (wfe->nBlockAlign * 10000000) / wfe->nAvgBytesPerSec;
+          REFERENCE_TIME duration = AudioFrameDuration(wfe);
           m_pCurrentAudioBuffer->rtStop = m_pCurrentAudioBuffer->rtStart + duration;
         }
         else
@@ -707,37 +708,20 @@ void CDeMultiplexer::FillAudio(CTsHeader& header, byte* tsPacket)
         m_pCurrentAudioBuffer->nPlaylist = m_nPlaylist;
         m_pCurrentAudioBuffer->rtTitleDuration = m_rtTitleDuration;
 
-        UINT32 pesHeaderLen = p[8] + 9;
-        m_nAudioPesLenght = (p[4] << 8) + p[5] - (pesHeaderLen - 6);
-
-        unsigned int flags = p[7];
-        const BYTE* pos = p + 9;
-
-        if ((flags & 0xc0) == 0x80) 
-          pos += 5; // PTS
-        else if ((flags & 0xc0) == 0xc0) 
-          pos += 10; // PTS & DTS
-
-        if (flags & 0x01) // PES extension
+        AudioPesStart pes = ParseAudioPesStart(p, 188 - header.PayLoadStart);
+        if (!pes.valid)
         {
-          unsigned int pes_ext = *pos++;
-          // Skip PES private data, program packet sequence counter and P-STD buffer
-          unsigned int skip = (pes_ext >> 4) & 0xb;
-          skip += skip & 0x9;
-          pos += skip;
-          
-          if ((pes_ext & 0x41) == 0x01 && (pos + 2) <= (p + pesHeaderLen)) 
-          {  
-            // PES extension 2
-            if ((pos[0] & 0x7f) > 0 && (pos[1] & 0x80) == 0)
-            {
-              if (pos[1] == 0x76)
-                m_bAC3Substream = true; // this stream will get discarded
-            }
-          }
+          LogDebug("Pes header does not fit the packet");
+          delete m_pCurrentAudioBuffer;
+          m_pCurrentAudioBuffer = NULL;
+          m_nAudioPesLenght = 0;
+          return;
         }
+        UINT32 pesHeaderLen = pes.pesHeaderLen;
+        m_nAudioPesLenght = pes.pesLength;
+        m_bAC3Substream = pes.ac3Substream;
 
-        UINT32 len = 188 - pesHeaderLen - 4; // 4 for TS packet header
+        UINT32 len = pes.firstPacketLength;
         if (len > 0 && !m_bAC3Substream)
         { 
           byte* ps = p + pesHeaderLen;
@@ -774,7 +758,7 @@ void CDeMultiplexer::FillAudio(CTsHeader& header, byte* tsPacket)
 
   if (m_AudioValidPES && !packetProcessed && m_pCurrentAudioBuffer && !m_bAC3Substream)
   {
-    if (m_pCurrentAudioBuffer->size() != m_nAudioPesLenght)
+    if (AudioPesNeedsMoreData(m_pCurrentAudioBuffer->size(), m_nAudioPesLenght))
     {
       int pos = header.PayLoadStart;
 
@@ -783,10 +767,12 @@ void CDeMultiplexer::FillAudio(CTsHeader& header, byte* tsPacket)
         int dataLenght = 188 - pos;
         m_pCurrentAudioBuffer->resize(m_pCurrentAudioBuffer->GetDataSize() + dataLenght);
         memcpy(m_pCurrentAudioBuffer->data() + m_pCurrentAudioBuffer->GetDataSize() - dataLenght, &tsPacket[pos], dataLenght);
+        if (m_pCurrentAudioBuffer->size() > m_nAudioPesLenght)
+          m_pCurrentAudioBuffer->resize(m_nAudioPesLenght); // the last packet carries stuffing past the end of the PES
       }
     }
     
-    if (m_pCurrentAudioBuffer->size() == m_nAudioPesLenght)
+    if (AudioPesComplete(m_pCurrentAudioBuffer->size(), m_nAudioPesLenght))
     {
       if (ParseAudioFormat(m_pCurrentAudioBuffer))
         m_playlistManager->SubmitAudioPacket(m_pCurrentAudioBuffer);
@@ -982,6 +968,13 @@ void CDeMultiplexer::FillVideoH264PESPacket(CTsHeader* header, std::unique_ptr<P
   {
     m_loopLastSearch = 1;
     m_p->erase(m_p->begin() + (0), m_p->begin() + (0) + (start - m_p->data()));
+  }
+
+  if (VideoPesBufferTooLarge(m_p->size())) // BD-03: no start code in 4 MB, the data are not a video stream
+  {
+    LogDebug("demux: video PES buffer over %d bytes without a NAL unit start, data dropped", (int)VIDEO_PES_BUFFER_LIMIT);
+    m_p.reset();
+    m_loopLastSearch = 0;
   }
 
   for (PacketList::iterator pos = m_pl.begin(); pos != m_pl.end(); ++pos) 

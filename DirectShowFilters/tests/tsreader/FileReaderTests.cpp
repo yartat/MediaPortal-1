@@ -7,6 +7,7 @@
 #include "FileReader.h"
 #include "MultiFileReader.h"
 #include "../unit/TempDir.h"
+#include "../unit/AllocLimit.h"
 
 namespace
 {
@@ -432,4 +433,76 @@ TEST(MultiFileReader, AMissingInfoFileMakesTheOpenFail)
   r.SetFileName(dir.File(kInfoName).c_str());
   EXPECT_NE(r.OpenFile(), S_OK);
   EXPECT_TRUE(r.IsFileInvalid());
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// SECURITY_AUDIT.md: TR-05. The names in the info file are written by TV Server (sometimes on a network share).
+// ---------------------------------------------------------------------------------------------------------------------------
+
+namespace
+{
+  std::wstring WithForwardSlashes(std::wstring path)
+  {
+    for (wchar_t& c : path)
+      if (c == L'\\')
+        c = L'/';
+    return path;
+  }
+}
+
+// TR-05: only a backslash makes the reader keep the file name and take the folder of the buffer. A name with forward slashes is used
+// as it is, so the info file can send the reader to any file: here a file of the same name in another folder.
+TEST(MultiFileReader, NameWithForwardSlashesIsReducedToTheFileName)
+{
+  Buffer b;
+  TempDir elsewhere;
+  elsewhere.Write(L"live1.ts", Pattern(1000, 200));
+  b.WriteInfo(500, 2, 0, { WithForwardSlashes(elsewhere.File(L"live1.ts")), b.dir.File(L"live2.ts") });
+  MultiFileReader r(FALSE, FALSE, nullptr, FALSE, FALSE);
+  r.SetFileName(b.dir.File(kInfoName).c_str());
+  ASSERT_EQ(r.OpenFile(), S_OK);
+  Bytes out(1500);
+  ULONG got = 0;
+  r.Read(out.data(), 1500, &got);
+  EXPECT_EQ(got, 1500u);
+  EXPECT_EQ(out, b.Expected()) << "the data came from the other folder";
+}
+
+// TR-05: a relative name with forward slashes leaves the folder of the buffer.
+TEST(MultiFileReader, RelativeNameCannotLeaveTheBufferFolder)
+{
+  Buffer b;
+  b.WriteInfo(500, 2, 0, { L"../live1.ts", b.dir.File(L"live2.ts") });
+  MultiFileReader r(FALSE, FALSE, nullptr, FALSE, FALSE);
+  r.SetFileName(b.dir.File(kInfoName).c_str());
+  ASSERT_EQ(r.OpenFile(), S_OK);
+  Bytes out(1500);
+  ULONG got = 0;
+  r.Read(out.data(), 1500, &got);
+  EXPECT_EQ(got, 1500u);
+  EXPECT_EQ(out, b.Expected());
+}
+
+// TR-05: the last name has no terminator, and neither has the data after it (the counters are chosen without a zero character).
+// wcslen() goes on behind the end of the file, into what the buffer of 64 KB held before.
+TEST(MultiFileReader, ListWithoutTerminatorDoesNotReadBehindTheFile)
+{
+  PageHeap pageHeap;
+  HeapFill fill(0x41);
+  TempDir dir;
+  const long counter = 0x01010101;
+  Bytes info;
+  auto put = [&info](const void* data, size_t n) { const uint8_t* p = static_cast<const uint8_t*>(data); info.insert(info.end(), p, p + n); };
+  const int64_t position = 0;
+  put(&position, sizeof(position));
+  put(&counter, sizeof(counter));
+  put(&counter, sizeof(counter));
+  const wchar_t name[] = { L'a', L'b', L'c' };         // no terminator
+  put(name, sizeof(name));
+  put(&counter, sizeof(counter));
+  put(&counter, sizeof(counter));
+  dir.Write(kInfoName, info);
+  MultiFileReader r(FALSE, FALSE, nullptr, FALSE, FALSE);
+  r.SetFileName(dir.File(kInfoName).c_str());
+  EXPECT_NO_THROW(r.OpenFile());
 }

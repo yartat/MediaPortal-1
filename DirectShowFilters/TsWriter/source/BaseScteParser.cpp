@@ -200,7 +200,7 @@ void CBaseScteParser::OnLvctReceived(int tableId, char* name, int majorChannelNu
     }
     if (name != NULL)
     {
-      strcpy(info->ServiceName, name);
+      strncpy_s(info->ServiceName, sizeof(info->ServiceName), name, _TRUNCATE);
     }
     info->MajorChannel = majorChannelNumber;
     info->MinorChannel = minorChannelNumber;

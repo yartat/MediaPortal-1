@@ -21,6 +21,7 @@
 #include "stdafx.h"
 
 #include "MPIPTV_UDP.h"
+#include "UdpReceive.h"
 #include "Network.h"
 #include "Utilities.h"
 
@@ -116,8 +117,9 @@ int CMPIPTV_UDP::Initialize(HANDLE lockMutex, CParameterCollection *configuratio
   this->receiveDataTimeout = (this->receiveDataTimeout < 0) ? UDP_RECEIVE_DATA_TIMEOUT_DEFAULT : this->receiveDataTimeout;
   this->openConnetionMaximumAttempts = (this->openConnetionMaximumAttempts < 0) ? UDP_OPEN_CONNECTION_MAXIMUM_ATTEMPTS_DEFAULT : this->openConnetionMaximumAttempts;
 
-  this->defaultBufferSize = defaultMultiplier * iptvBufferSize;
-  this->maxBufferSize = maxMultiplier * iptvBufferSize;
+  UdpBufferSizes bufferSizes = ComputeUdpBufferSizes(iptvBufferSize, defaultMultiplier, maxMultiplier);
+  this->defaultBufferSize = bufferSizes.defaultSize;
+  this->maxBufferSize = bufferSizes.maxSize;
 
   this->lockMutex = lockMutex;
   if (this->lockMutex == NULL)
@@ -667,7 +669,7 @@ void CMPIPTV_UDP::ReceiveData(bool *shouldExit)
       WaitForSingleObject(this->lockMutex, INFINITE);
       do
       {
-        length = GetDataFromSocket(&this->logger, PROTOCOL_IMPLEMENTATION_NAME, METHOD_RECEIVE_DATA_NAME, this->m_socket, this->receiveBuffer, freeSpace);
+        length = GetDataFromSocket(&this->logger, PROTOCOL_IMPLEMENTATION_NAME, METHOD_RECEIVE_DATA_NAME, this->m_socket, this->receiveBuffer, UdpReceiveLength(freeSpace, this->defaultBufferSize));
 
         if (length > 0)
         {

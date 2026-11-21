@@ -897,7 +897,7 @@ namespace
 
 }
 
-// KNOWN DEFECT (disabled): the length of the NAL unit is taken from the first four bytes of the data and trusted: malloc() of that
+// The length of the NAL unit is taken from the first four bytes of the data and trusted: malloc() of that
 // size for the SPS copy and again for the unescaped copy, whatever the data holds (here 64 MB, a gigabyte just the same). The
 // length has to be checked against the size of the data first. The test watches the allocations (Debug CRT only).
 #ifdef _DEBUG
@@ -916,19 +916,19 @@ namespace
 
 TEST(FrameHeaderParser, H264NalLengthBeyondTheDataIsRefusedWithoutBigAllocations)
 {
-#ifndef _DEBUG
-  GTEST_SKIP() << "allocations are only watched in Debug builds";
-#else
   Data d{ 0x04, 0x00, 0x00, 0x00, 0x67, 0x64, 0x00, 0x28, 0xAC, 0xD9, 0x40, 0x78, 0x02, 0x27, 0xE5, 0xC0, 0x44, 0, 0, 0 };   // length 64 MB
   Parser s(d);
   avchdr h;
+#ifdef _DEBUG
   g_largestAllocation = 0;
   _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(AllocationHook);
+#endif
   const bool ok = s.p->Read(h, static_cast<int>(d.size()), nullptr, true);
+#ifdef _DEBUG
   _CrtSetAllocHook(previous);
-  EXPECT_FALSE(ok);
   EXPECT_LT(g_largestAllocation, static_cast<size_t>(1 << 20)) << "allocated " << g_largestAllocation << " bytes for 20 bytes of data";
 #endif
+  EXPECT_FALSE(ok);                                   // the allocations are only watched in Debug builds (CRT hook), the refusal everywhere
 }
 
 TEST(FrameHeaderParser, RandomDataNeverReadsBehindTheBuffer)

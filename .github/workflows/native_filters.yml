@@ -178,4 +178,5 @@ jobs:
 
       - name: Run tests
         working-directory: DirectShowFilters
+        # -LE local: mp_local_tests and mp_subs_heavy_tests (several GB of memory) are never run in CI and are not built here
         run: ctest --test-dir build/vs2022-x64-unicode -C Release -LE local --output-on-failure

@@ -98,6 +98,9 @@ protected:
   // signalize that we received HTTP server response
   bool receivedHttpResponse;
 
+  // redirects followed since the last answer with data
+  unsigned int redirectCount;
+
   HANDLE lockMutex;
 
   char *receiveBuffer;            // internal receive buffer - must be long enough to not lost data (especially for UDP)

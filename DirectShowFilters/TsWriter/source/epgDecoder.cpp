@@ -109,6 +109,7 @@ HRESULT CEpgDecoder::DecodeEPG(byte* buf,int len,int PID)
 		imapEPG it=m_mapEPG.find(key);
 		if (it==m_mapEPG.end())
 		{
+			if (m_mapEPG.size() >= 8192) return S_OK; // EP-02: a stream must not grow the tables without limit
 			EPGChannel newChannel ;
 			newChannel.original_network_id=network_id;
 			newChannel.service_id=service_id;
@@ -135,8 +136,8 @@ HRESULT CEpgDecoder::DecodeEPG(byte* buf,int len,int PID)
 		{
 			unsigned int event_id=(buf[start]<<8)+buf[start+1];
 			unsigned long dateMJD=(buf[start+2]<<8)+buf[start+3];
-			unsigned long timeUTC=(buf[start+4]<<16)+(buf[start+5]<<8)+buf[6];
-			unsigned long duration=(buf[start+7]<<16)+(buf[start+8]<<8)+buf[9];
+			unsigned long timeUTC=(buf[start+4]<<16)+(buf[start+5]<<8)+buf[start+6];
+			unsigned long duration=(buf[start+7]<<16)+(buf[start+8]<<8)+buf[start+9];
 			unsigned int running_status=buf[start+10]>>5;
 			unsigned int free_CA_mode=(buf[start+10]>>4) & 0x1;
 			int descriptors_len=((buf[start+10]&0xf)<<8) + buf[start+11];
@@ -144,6 +145,11 @@ HRESULT CEpgDecoder::DecodeEPG(byte* buf,int len,int PID)
 			EPGChannel::imapEvents itEvent=channel.mapEvents.find(event_id);
 			if (itEvent==channel.mapEvents.end())
 			{
+				if (channel.mapEvents.size() >= 16384)
+				{
+					start=start+12+descriptors_len;
+					continue;
+				}
 				EPGEvent newEvent;
 				newEvent.eventid=event_id;
 				newEvent.dateMJD=dateMJD;
@@ -401,7 +407,7 @@ HRESULT CEpgDecoder::DecodePremierePrivateEPG(byte* buf,int len)
 		while (start+8 <= len)
 		{
 			unsigned int event_id=(buf[start]<<24) | (buf[start+1]<<16) | (buf[start+2]<< 8) |  buf[start+3];
-			unsigned long duration=(buf[start+4]<<16)+(buf[start+5]<<8)+buf[6];
+			unsigned long duration=(buf[start+4]<<16)+(buf[start+5]<<8)+buf[start+6];
 			int descriptors_len=((buf[start+7]&0xf)<<8) + buf[start+8];
 			epgEvent.eventid=event_id;
 			epgEvent.duration=duration;
@@ -502,6 +508,7 @@ void CEpgDecoder::DecodePremiereContentTransmissionDescriptor(byte* data, EPGEve
 			epgEvent.dateMJD=dateMJD;
 			epgEvent.timeUTC=timeUTC;
 			//LogDebug("%d %d %s nid %d tid %d sid %d",dateMJD,timeUTC,epgEvent.vecLanguages[0].event.c_str(),nid,tid,sid);
+			if (channel.mapEvents.size() >= 16384) break;
 			channel.mapEvents[m_pseudo_event_id]=epgEvent;
 			m_pseudo_event_id++;
         }
@@ -607,6 +614,7 @@ void CEpgDecoder::DecodeExtendedEvent(byte* data, EPGEvent& epgEvent)
 
 		while (len1 > 0)
 		{
+			if (pointer >= descriptor_length+2) return; // EP-03
 			item_description_length = data[pointer];
 			if (item_description_length< 0 || pointer+item_description_length > descriptor_length+2) 
 			{
@@ -615,6 +623,7 @@ void CEpgDecoder::DecodeExtendedEvent(byte* data, EPGEvent& epgEvent)
 			}
 
 			pointer += (1 + item_description_length);
+			if (pointer >= descriptor_length+2) return; // EP-03
 
 			item_length = data[pointer];
 			if (item_length < 0 || pointer+item_length>descriptor_length+2) 
@@ -637,6 +646,7 @@ void CEpgDecoder::DecodeExtendedEvent(byte* data, EPGEvent& epgEvent)
 		};
 
 		pointer=7+length_of_items;
+		if (pointer >= descriptor_length+2) return; // EP-03: no text_length byte inside the descriptor
 		text_length = data[pointer];
 		pointer += 1;
 		if (text_length< 0 || pointer+text_length>descriptor_length+2) 

@@ -24,6 +24,7 @@
 #include "stdafx.h"
 
 #include "MPIPTV_RTP.h"
+#include "UdpReceive.h"
 #include "Network.h"
 #include "Utilities.h"
 
@@ -276,7 +277,7 @@ void CMPIPTV_RTP::ReceiveData(bool *shouldExit)
         WaitForSingleObject(this->lockMutex, INFINITE);
         do
         {
-          length = GetDataFromSocket(&this->logger, PROTOCOL_IMPLEMENTATION_NAME, METHOD_RECEIVE_DATA_NAME, this->m_socket, this->receiveBuffer, freeSpace);
+          length = GetDataFromSocket(&this->logger, PROTOCOL_IMPLEMENTATION_NAME, METHOD_RECEIVE_DATA_NAME, this->m_socket, this->receiveBuffer, UdpReceiveLength(freeSpace, this->defaultBufferSize));
 
           if (length == SOCKET_ERROR)
           {

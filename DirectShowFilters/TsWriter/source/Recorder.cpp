@@ -28,6 +28,7 @@
 
 #include "..\..\shared\AdaptionField.h"
 #include "recorder.h"
+#include "PartName.h"
 #define ERROR_FILE_TOO_LARGE 223
 #define RECORD_BUFFER_SIZE 256000
 #define IGNORE_AFTER_TUNE 75        // how many TS packets to ignore after tuning
@@ -263,22 +264,8 @@ void CRecorder::Write(byte* buffer, int len)
               m_hFile=INVALID_HANDLE_VALUE;
 
               //create a new file
-              char ext[MAX_PATH];
-              char fileName[MAX_PATH];
-              char part[100];
-						  int len=strlen(m_szFileName)-1;
-						  int pos=len-1;
-						  while (pos>0)
-						  {
-							  if (m_szFileName[pos]=='.') break;
-							  pos--;
-						  }
-              strcpy(ext, &m_szFileName[pos]);
-              strncpy(fileName, m_szFileName, pos);
-              fileName[pos]=0;
-              sprintf(part,"_p%d",m_iPart);
               char newFileName[MAX_PATH];
-              sprintf(newFileName,"%s%s%s",fileName,part,ext);
+              BuildNextPartName(m_szFileName, m_iPart, newFileName, sizeof(newFileName));
 
 						  LogDebug("Recorder:Create new  file:'%s' %d",newFileName);
 	            m_hFile = CreateFile(newFileName,      // The filename

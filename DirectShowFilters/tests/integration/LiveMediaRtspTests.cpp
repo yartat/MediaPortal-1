@@ -3,12 +3,15 @@
 #include <gtest/gtest.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <atomic>
 #include <chrono>
 #include <string>
 #include "BasicUsageEnvironment.hh"
 #include "MPRTSPClient.h"
 #include "MPRTSPServer.h"
 #include "MPTaskScheduler.h"
+#include "../unit/AllocLimit.h"
+#include "../../StreamingServer/source/EventThreadCalls.h"
 
 // MPRTSPServer logs through the host program
 void LogDebug(const wchar_t*, ...) {}
@@ -159,4 +162,126 @@ TEST_F(LiveMediaRtsp, PortInUseGivesNoServer)
   if (second)
     Medium::close(second);
   Medium::close(first);
+}
+
+// ---------------------------------------------------------------------------
+// SECURITY_AUDIT.md: RS-01. live555 wants every subclass of the server to call cleanup() in its own destructor, so the sessions that
+// are still there are deleted while the members of the subclass exist. MPRTSPServer does not: its destructor only clears the map of
+// the sessions, and the sessions are deleted later in the destructor of the base class, where ~MPRTSPClientSession() erases itself
+// from the map of the server that is already destroyed.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+  // creates the sessions the way live555 does when a client sets up a stream, without a client
+  struct SessionServer : MPRTSPServer
+  {
+    static SessionServer* Create(UsageEnvironment& env, unsigned short port)
+    {
+      Port ourPort(port);
+      const int socket = setUpOurSocket(env, ourPort, AF_INET);
+      return socket < 0 ? nullptr : new SessionServer(env, socket, ourPort);
+    }
+
+    void AddSessions(int count)
+    {
+      for (int i = 0; i < count; i++)
+        createNewClientSessionWithId();
+    }
+
+  private:
+    SessionServer(UsageEnvironment& env, int socket, Port port) : MPRTSPServer(env, socket, port, NULL, 65) {}
+  };
+}
+
+// The reference: a session can be found and removed through the server, and a server without sessions stops.
+TEST_F(LiveMediaRtsp, SessionOfTheServerCanBeRemovedById)
+{
+  SessionServer* server = SessionServer::Create(*env, port);
+  ASSERT_NE(server, nullptr);
+  server->AddSessions(2);
+  ASSERT_EQ(server->GetSessionCount(), 2);
+  MPRTSPServer::MPRTSPClientSession* session = server->GetSessionByIndex(0);
+  ASSERT_NE(session, nullptr);
+  EXPECT_TRUE(server->RemoveSessionById(session->SessionId()));
+  EXPECT_EQ(server->GetSessionCount(), 1);
+  server->RemoveSessionById(server->GetSessionByIndex(0)->SessionId());
+  EXPECT_EQ(server->GetSessionCount(), 0);
+  Medium::close(server);
+}
+
+// RS-01: the server is stopped while clients are connected (TV Server stops with viewers). A death test: the destructor may crash.
+// The blocks are freed to the system (PageHeap), so a use of the destroyed map is an access violation without AddressSanitizer.
+TEST(LiveMediaRtspDeathTest, StoppingTheServerWithSessionsDoesNotUseTheDestroyedMap)
+{
+  EXPECT_EXIT(
+    {
+      PageHeap pageHeap;
+      MPTaskScheduler* scheduler = MPTaskScheduler::createNew();
+      UsageEnvironment* env = BasicUsageEnvironment::createNew(*scheduler);
+      SessionServer* server = SessionServer::Create(*env, FreePort());
+      if (!server)
+        exit(3);
+      fprintf(stderr, "[child] server created\n");
+      server->AddSessions(3);
+      fprintf(stderr, "[child] sessions added\n");
+      Medium::close(server);
+      fprintf(stderr, "[child] server closed\n");
+      exit(0);
+    },
+    ::testing::ExitedWithCode(0), "");
+}
+
+// RS-01: calls from the API thread of TV Server are run by the thread that drives the live555 event loop
+TEST(EventThreadCalls, RunsOnTheEventThreadAndTheCallerWaits)
+{
+  EventThreadCalls calls;
+  std::atomic<bool> stop(false);
+  std::thread::id loopId;
+  std::thread loop([&]()
+  {
+    loopId = std::this_thread::get_id();
+    calls.Enter();
+    while (!stop) { calls.Drain(); std::this_thread::sleep_for(std::chrono::milliseconds(1)); }
+    calls.Leave();
+  });
+  while (loopId == std::thread::id()) std::this_thread::yield();   // Enter() follows right after
+
+  std::thread::id ranOn;
+  bool done = false;
+  for (int i = 0; i < 1000 && !done; ++i)   // until Enter() has happened
+  {
+    done = calls.Call([&]() { ranOn = std::this_thread::get_id(); }, std::chrono::milliseconds(5000));
+    if (ranOn == loopId) break;
+    std::this_thread::yield();
+  }
+  EXPECT_TRUE(done);
+  EXPECT_EQ(loopId, ranOn);
+  stop = true;
+  loop.join();
+}
+
+TEST(EventThreadCalls, RunsDirectlyWhenNoLoopIsActive)
+{
+  EventThreadCalls calls;
+  std::thread::id ranOn;
+  EXPECT_TRUE(calls.Call([&]() { ranOn = std::this_thread::get_id(); }, std::chrono::milliseconds(10)));
+  EXPECT_EQ(std::this_thread::get_id(), ranOn);
+}
+
+TEST(EventThreadCalls, TimeoutLeavesTheCallQueuedAndLeaveRunsIt)
+{
+  EventThreadCalls calls;
+  calls.Enter();                    // this thread is the "event thread" ...
+  std::shared_ptr<int> hits = std::make_shared<int>(0);
+  bool done = true;
+  std::thread api([&]()             // ... and never drains while the API thread waits
+  {
+    done = calls.Call([hits]() { ++*hits; }, std::chrono::milliseconds(50));
+  });
+  api.join();
+  EXPECT_FALSE(done);
+  EXPECT_EQ(0, *hits);
+  calls.Leave();
+  EXPECT_EQ(1, *hits);
 }

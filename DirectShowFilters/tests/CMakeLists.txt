@@ -9,6 +9,7 @@
 # mp_tsmuxer_tests, mp_tsreader_tests, mp_tswriter_tests
 #                      the code of these filters, built from their sources (no DLL, no graph)
 # mp_local_tests       samples, a graphics or audio device of the developer machine (MP_BUILD_LOCAL_TESTS)
+#                      (and mp_subs_heavy_tests: huge drawings, several GB of memory)
 #
 # All are built in the character set of MP_CHARSET, like the filters.
 
@@ -40,6 +41,7 @@ add_executable(mp_unit_tests
   unit/BitstreamReaderTests.cpp
   unit/BdPacketTests.cpp
   unit/BdParserTests.cpp
+  unit/BdAudioPesTests.cpp
   unit/StrUtilsTests.cpp
   unit/RectUtilsTests.cpp
   unit/ResamplerTests.cpp
@@ -66,6 +68,7 @@ target_link_libraries(mp_unit_tests PRIVATE mp_common DvbCoreUtils BaseClasses w
 # ---------------------------------------------------------------------------
 add_executable(mp_integration_tests
   unit/TestSupport.cpp
+  unit/AllocLimit.cpp
   integration/FilterHost.cpp
   integration/FilterLoadTests.cpp
   integration/TsReaderGraphTests.cpp
@@ -110,9 +113,13 @@ gtest_discover_tests(mp_tsmuxer_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS 
 
 add_executable(mp_tswriter_tests
   unit/TestSupport.cpp
+  unit/AllocLimit.cpp
   tswriter/TextUtilTests.cpp
   tswriter/ParserTests.cpp
   tswriter/FileWriterTests.cpp
+  tswriter/PartNameTests.cpp
+  tswriter/ScteTests.cpp
+  tswriter/EpgTests.cpp
   ../TsWriter/source/FileWriter.cpp
   ../TsWriter/source/MultiFileWriter.cpp
   ../TsWriter/source/CDiskBuff.cpp
@@ -125,6 +132,17 @@ add_executable(mp_tswriter_tests
   ../TsWriter/source/PmtParser.cpp
   ../TsWriter/source/PesDecoder.cpp
   ../TsWriter/source/PesPacket.cpp
+  ../shared/PidTable.cpp
+  ../shared/ChannelInfo.cpp
+  ../TsWriter/source/SvctParser.cpp
+  ../TsWriter/source/NttParser.cpp
+  ../TsWriter/source/LvctParser.cpp
+  ../TsWriter/source/AtscNitParser.cpp
+  ../TsWriter/source/BaseScteParser.cpp
+  ../TsWriter/source/epgDecoder.cpp
+  ../TsWriter/source/CriticalSection.cpp
+  ../TsWriter/source/EnterCriticalSection.cpp
+  ../TsWriter/source/AutoString.cpp
 )
 target_include_directories(mp_tswriter_tests PRIVATE ../TsWriter/source ../shared unit)
 target_link_libraries(mp_tswriter_tests PRIVATE mp_common DvbCoreUtils BaseClasses winmm strmiids uuid ole32 oleaut32 GTest::gtest GTest::gtest_main)
@@ -133,10 +151,12 @@ gtest_discover_tests(mp_tswriter_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS
 
 add_executable(mp_tsreader_tests
   unit/TestSupport.cpp
+  unit/AllocLimit.cpp
   tsreader/GolombBufferTests.cpp
   tsreader/FrameHeaderParserTests.cpp
   tsreader/FileReaderTests.cpp
   tsreader/PsiParserTests.cpp
+  tsreader/SourceNameTests.cpp
   ../TsReader/source/PatParser.cpp
   ../TsReader/source/PmtParser.cpp
   ../TsReader/source/PidTable.cpp
@@ -154,6 +174,123 @@ target_include_directories(mp_tsreader_tests PRIVATE ../TsReader/source ../share
 target_link_libraries(mp_tsreader_tests PRIVATE mp_common DvbCoreUtils BaseClasses winmm strmiids wmcodecdspuuid uuid ole32 oleaut32 ws2_32 GTest::gtest GTest::gtest_main)
 set_target_properties(mp_tsreader_tests PROPERTIES FOLDER "Tests")
 gtest_discover_tests(mp_tsreader_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS tsreader)
+
+# Core-CC-Parser: its own program, because CcParseH264.cpp includes the StdAfx.h of Core-CC-Parser/ax, which the include folders
+# of the other test programs would hide. AllocLimit.cpp replaces operator new to see requests of gigabytes without making them.
+add_executable(mp_cc_tests
+  unit/TestSupport.cpp
+  unit/AllocLimit.cpp
+  unit/CcParseH264Tests.cpp
+  ../Core-CC-Parser/parsing/CcParseH264.cpp
+)
+target_include_directories(mp_cc_tests PRIVATE ../Core-CC-Parser/ax ../Core-CC-Parser/parsing unit)
+target_link_libraries(mp_cc_tests PRIVATE mp_common BaseClasses winmm strmiids uuid ole32 oleaut32 GTest::gtest GTest::gtest_main)
+set_target_properties(mp_cc_tests PROPERTIES FOLDER "Tests")
+gtest_discover_tests(mp_cc_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS cc)
+
+# MPIPTVSource: RtpPacket.cpp and RtpSource.cpp with a logger that writes nothing (iptv/LoggerStub.cpp).
+add_executable(mp_iptv_tests
+  unit/TestSupport.cpp
+  iptv/LoggerStub.cpp
+  iptv/RtpTests.cpp
+  iptv/HttpChunkTests.cpp
+  iptv/UdpHttpTests.cpp
+  ../MPIPTVSource/MPIPTV_RTP/RtpPacket.cpp
+  ../MPIPTVSource/MPIPTV_RTP/RtpSource.cpp
+  ../MPIPTVSource/MPIPTVSource/LinearBuffer.cpp
+  ../MPIPTVSource/MPIPTVSource/Parameter.cpp
+  ../MPIPTVSource/MPIPTVSource/Strings.cpp
+  ../MPIPTVSource/MPIPTVSource/ParameterCollection.cpp
+)
+target_include_directories(mp_iptv_tests PRIVATE ../MPIPTVSource/MPIPTV_UDP ../MPIPTVSource/MPIPTV_HTTP ../MPIPTVSource/MPIPTV_RTP ../MPIPTVSource/MPIPTVSource ../MPIPTVSource/MPIPTV_UDP unit)
+target_compile_definitions(mp_iptv_tests PRIVATE MPIPTV_RTP_EXPORTS MPIPTVSOURCE_EXPORTS)
+target_link_libraries(mp_iptv_tests PRIVATE mp_common BaseClasses winmm strmiids uuid ole32 oleaut32 ws2_32 shell32 GTest::gtest GTest::gtest_main)
+set_target_properties(mp_iptv_tests PROPERTIES FOLDER "Tests")
+gtest_discover_tests(mp_iptv_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS iptv)
+
+# MPC-HC subtitle engine (palettes of PGS and DVB, ...): its libraries, with the settings of mpcSubs. Needs the MPC-HC build (Unicode).
+if(MP_MPC_SUBS_ENABLED)
+  add_executable(mp_subs_tests
+    unit/TestSupport.cpp
+    unit/AllocLimit.cpp
+    subs/PaletteTests.cpp
+    subs/RenderBoundsTests.cpp
+    subs/ObjectLengthTests.cpp
+    subs/VobSubImageTests.cpp
+    subs/DrawingOverlayTests.cpp
+    subs/DrawingCoordinateTests.cpp
+  )
+  mp_target(mp_subs_tests
+    FOLDER "Tests"
+    CXX_STANDARD 17
+    CHARSET UNICODE
+    INCLUDES
+      ../baseclasses
+      ../mpc-hc_subs/include
+      ../mpc-hc_subs/src/subtitles
+      ../mpc-hc_subs/src/dsutil
+      ../mpc-hc_subs/src/thirdparty
+      unit
+      subs
+    DEFINITIONS
+      
+    LIBS
+      Winmm vfw32 Version
+      DSUtil SubPic Subtitles Kasumi VDsystem BaseClasses
+      Freetype::Freetype ZLIB::ZLIB unofficial::unrar::unrar
+      GTest::gtest GTest::gtest_main)
+  gtest_discover_tests(mp_subs_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS subs)
+
+  # The same engine with huge drawings (several GB of memory): local only, see MP_BUILD_LOCAL_TESTS below
+  if(MP_BUILD_LOCAL_TESTS)
+    add_executable(mp_subs_heavy_tests
+      unit/TestSupport.cpp
+      subs/DrawingOverlayHeavyTests.cpp
+    )
+    mp_target(mp_subs_heavy_tests
+      FOLDER "Tests"
+      CXX_STANDARD 17
+      CHARSET UNICODE
+      INCLUDES
+        ../baseclasses
+        ../mpc-hc_subs/include
+        ../mpc-hc_subs/src/subtitles
+        ../mpc-hc_subs/src/dsutil
+        ../mpc-hc_subs/src/thirdparty
+        unit
+        subs
+      LIBS
+        Winmm vfw32 Version
+        DSUtil SubPic Subtitles Kasumi VDsystem BaseClasses
+        Freetype::Freetype ZLIB::ZLIB unofficial::unrar::unrar
+        GTest::gtest GTest::gtest_main)
+    gtest_discover_tests(mp_subs_heavy_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS local TIMEOUT 600)
+  endif()
+
+  # MPAudioSwitcher: its sources (the filter, not the DLL), without TestSupport.cpp: AudioSwitcher.cpp has its own LogDebug
+  add_executable(mp_audio_tests
+    audio/AudioSwitcherTests.cpp
+    audio/DeviceIdTests.cpp
+    ../MPAudioswitcher/source/Audio.cpp
+    ../MPAudioswitcher/source/AudioSwitcher.cpp
+    ../MPAudioswitcher/source/StreamSwitcher.cpp
+  )
+  mp_target(mp_audio_tests
+    FOLDER "Tests"
+    CXX_STANDARD 17
+    CHARSET UNICODE
+    INCLUDES
+      ../baseclasses
+      ../MPAudioswitcher/source
+      ../mpc-hc_subs/src/dsutil
+    DEFINITIONS
+      _CRT_SECURE_NO_DEPRECATE
+    LIBS
+      Vfw32 shell32
+      DSUtil VDsystem BaseClasses
+      GTest::gtest GTest::gtest_main)
+  gtest_discover_tests(mp_audio_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS audio)
+endif()
 
 # ---------------------------------------------------------------------------
 # Local tests: media samples and a graphics device of the developer machine; never part of CI
@@ -219,7 +356,7 @@ if(MP_BUILD_LOCAL_TESTS)
 endif()
 
 if(MP_TEST_ASAN)
-  foreach(_t mp_unit_tests mp_integration_tests mp_local_tests)
+  foreach(_t mp_unit_tests mp_integration_tests mp_local_tests mp_cc_tests mp_iptv_tests mp_subs_tests mp_subs_heavy_tests mp_tswriter_tests mp_tsreader_tests)
     if(TARGET ${_t})
       target_compile_options(${_t} PRIVATE /fsanitize=address)
       # gtest from vcpkg is not instrumented: the STL container annotations must be off to link with it

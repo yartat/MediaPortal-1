@@ -122,3 +122,46 @@ TEST(TsHeader, ReservedAdaptionControlIsNoneOfTheThreeKinds)
   EXPECT_FALSE(h.AdaptionFieldOnly());
   EXPECT_FALSE(h.AdaptionFieldAndPayLoad());
 }
+
+// TS-01: with a wrong sync byte only SyncByte and TransportError were set, the other members kept what the memory held before.
+TEST(TsHeader, WrongSyncByteLeavesNoUninitialisedMembers)
+{
+  TsPacket p = MakePacket(0x100, 0x30, true);
+  p.data[0] = 0x00;
+  alignas(CTsHeader) unsigned char memory[sizeof(CTsHeader)];
+  memset(memory, 0xCD, sizeof(memory));
+  CTsHeader* h = new (memory) CTsHeader(p.data);
+  EXPECT_TRUE(h->TransportError);
+  EXPECT_EQ(h->Pid, 0);
+  EXPECT_EQ(h->AdaptionControl, 0);
+  EXPECT_EQ(h->PayLoadStart, 0);
+  EXPECT_FALSE(h->PayloadUnitStart);
+  EXPECT_FALSE(h->HasPayload);
+  EXPECT_FALSE(h->HasAdaptionField);
+  h->~CTsHeader();
+}
+
+// TS-01: an adaption field of 183 bytes or more fills the packet: there is no payload, although the header says there is one.
+TEST(TsHeader, AdaptionFieldFillingThePacketLeavesNoPayload)
+{
+  for (int length : { 183, 200, 255 })
+  {
+    SCOPED_TRACE(length);
+    TsPacket p = MakePacket(0x31, 0x30, true);
+    p.data[4] = static_cast<byte>(length);
+    CTsHeader h(p.data);
+    EXPECT_FALSE(h.HasPayload);
+    EXPECT_FALSE(h.PayloadUnitStart);
+  }
+}
+
+// The last adaption field length that leaves a payload byte keeps the payload.
+TEST(TsHeader, LongestAdaptionFieldWithPayloadKeepsThePayload)
+{
+  TsPacket p = MakePacket(0x31, 0x30, true);
+  p.data[4] = 182;
+  CTsHeader h(p.data);
+  EXPECT_TRUE(h.HasPayload);
+  EXPECT_TRUE(h.PayloadUnitStart);
+  EXPECT_EQ(h.PayLoadStart, 187);
+}

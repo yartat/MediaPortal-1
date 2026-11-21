@@ -239,6 +239,9 @@ void FontEngineInitialize(int screenWidth, int screenHeight, int poolFormat)
 //*******************************************************************************************************************
 void FontEngineSetDevice(void* device)
 {
+  // The state manager holds a reference to the device: release it here, not at DLL unload (loader lock, device already gone)
+  delete m_pStateManager;
+  m_pStateManager = NULL;
   if(!device)
   {
     m_pDevice = NULL;
@@ -277,17 +280,17 @@ HRESULT FontEngineSetMaximumFrameLatency(UINT maxLatency)
 
 void FontEngineSetRenderState(D3DRENDERSTATETYPE state, DWORD dwValue)
 {
-  m_pStateManager->SetRenderState(state, dwValue);
+  if (m_pStateManager) m_pStateManager->SetRenderState(state, dwValue);
 }
 
 void FontEngineSetSamplerState(DWORD dwStage, D3DSAMPLERSTATETYPE d3dSamplerState, DWORD dwValue)
 {
-  m_pStateManager->SetSamplerState(dwStage, d3dSamplerState, dwValue);
+  if (m_pStateManager) m_pStateManager->SetSamplerState(dwStage, d3dSamplerState, dwValue);
 }
 
 void FontEngineSetTextureStageState(DWORD dwStage, D3DTEXTURESTAGESTATETYPE d3dTextureStageState, DWORD dwValue)
 {
-  m_pStateManager->SetTextureStageState(dwStage, d3dTextureStageState, dwValue);
+  if (m_pStateManager) m_pStateManager->SetTextureStageState(dwStage, d3dTextureStageState, dwValue);
 }
 
 //*******************************************************************************************************************
