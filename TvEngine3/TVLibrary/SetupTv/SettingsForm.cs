@@ -123,6 +123,11 @@ namespace SetupTv
             while (!connected)
             {
               RemoteControl.HostName = server.HostName;
+              string connectionKey = System.Configuration.ConfigurationManager.AppSettings["TvServerConnectionKey"];
+              if (!string.IsNullOrEmpty(connectionKey))
+              {
+                RemoteControl.ConnectionKey = connectionKey;
+              }
 
               if (server.ReferringCard().Count > 0)
               {

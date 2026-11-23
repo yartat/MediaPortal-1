@@ -24,6 +24,7 @@ public partial class install_Default : System.Web.UI.Page
       tableResult.Visible = true;
       RemoteControl.Clear();
       RemoteControl.HostName = idTvserver.Text;
+      RemoteControl.ConnectionKey = idConnectionKey.Text.Trim();
       int cards = RemoteControl.Instance.Cards;
       textBoxResult.Text = "Connected to tvserver";
 
@@ -81,6 +82,18 @@ public partial class install_Default : System.Web.UI.Page
     catch (Exception ex)
     {
       textBoxResult.Text = "Unable to create/modify gentle.config !!! " + ex.ToString();
+      return;
+    }
+    try
+    {
+      Configuration webConfig = System.Web.Configuration.WebConfigurationManager.OpenWebConfiguration("~");
+      webConfig.AppSettings.Settings.Remove("TvServerConnectionKey");
+      webConfig.AppSettings.Settings.Add("TvServerConnectionKey", idConnectionKey.Text.Trim());
+      webConfig.Save();
+    }
+    catch (Exception ex)
+    {
+      textBoxResult.Text = "Unable to save the connection key to Web.config !!! " + ex.ToString();
       return;
     }
     Response.Redirect("../default.aspx");

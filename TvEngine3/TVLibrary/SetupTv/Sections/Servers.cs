@@ -62,7 +62,7 @@ namespace SetupTv.Sections
       ServerKeyMaterial material = GrpcSecurity.TryReadLocalMaterial();
       textBoxConnectionKey.Text = material != null
                                     ? material.ConnectionKey.ToString()
-                                    : "Not available - start the TV service once on this computer.";
+                                    : "Not available - start the TV service once on this computer. On another computer set TvServerConnectionKey in SetupTv.exe.config.";
       buttonCopyConnectionKey.Enabled = material != null;
     }
 

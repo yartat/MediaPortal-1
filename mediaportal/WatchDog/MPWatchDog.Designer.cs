@@ -49,7 +49,6 @@ namespace WatchDog
       this.menuItem14 = new System.Windows.Forms.MenuItem();
       this.menuItemStartTVserver = new System.Windows.Forms.MenuItem();
       this.menuItemStopTVserver = new System.Windows.Forms.MenuItem();
-      this.menuItemClearWEventLogOnTVserver = new System.Windows.Forms.MenuItem();
       this.menuItemClearTVserverLogs = new System.Windows.Forms.MenuItem();
       this.menuItem10 = new System.Windows.Forms.MenuItem();
       this.menuRebootTvServer = new System.Windows.Forms.MenuItem();
@@ -224,7 +223,6 @@ namespace WatchDog
       this.menuItem14.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
             this.menuItemStartTVserver,
             this.menuItemStopTVserver,
-            this.menuItemClearWEventLogOnTVserver,
             this.menuItemClearTVserverLogs,
             this.menuItem10,
             this.menuItemWOLTvServer});
@@ -242,21 +240,15 @@ namespace WatchDog
       this.menuItemStopTVserver.Text = "Stop TV Server";
       this.menuItemStopTVserver.Click += new System.EventHandler(this.menuItemStopTVserver_Click);
       // 
-      // menuItemClearWEventLogOnTVserver
-      // 
-      this.menuItemClearWEventLogOnTVserver.Index = 2;
-      this.menuItemClearWEventLogOnTVserver.Text = "Clear Windows EventLog";
-      this.menuItemClearWEventLogOnTVserver.Click += new System.EventHandler(this.menuItemClearWEventLogOnTVserver_Click);
-      // 
       // menuItemClearTVserverLogs
       // 
-      this.menuItemClearTVserverLogs.Index = 3;
+      this.menuItemClearTVserverLogs.Index = 2;
       this.menuItemClearTVserverLogs.Text = "Clear TV Server logs";
       this.menuItemClearTVserverLogs.Click += new System.EventHandler(this.menuItemClearTVserverLogs_Click);
       // 
       // menuItem10
       // 
-      this.menuItem10.Index = 4;
+      this.menuItem10.Index = 3;
       this.menuItem10.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
             this.menuRebootTvServer,
             this.menuShutdownTvServer,
@@ -284,7 +276,7 @@ namespace WatchDog
       // 
       // menuItemWOLTvServer
       // 
-      this.menuItemWOLTvServer.Index = 5;
+      this.menuItemWOLTvServer.Index = 4;
       this.menuItemWOLTvServer.Text = "Wake On TvServer";
       this.menuItemWOLTvServer.Click += new System.EventHandler(this.menuItemWOLTvServer_Click);
       // 
@@ -490,7 +482,6 @@ namespace WatchDog
     private System.Windows.Forms.MenuItem menuItem9;
     private System.Windows.Forms.MenuItem menuItemClearEventLogs;
     private System.Windows.Forms.MenuItem menuItemClearMPlogs;
-    private System.Windows.Forms.MenuItem menuItemClearWEventLogOnTVserver;
     private System.Windows.Forms.MenuItem menuItemClearTVserverLogs;
     private System.Windows.Forms.MenuItem menuItem10;
     private System.Windows.Forms.MenuItem menuRebootTvServer;

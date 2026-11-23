@@ -68,11 +68,6 @@ namespace WatchDogService
       return Task.FromResult(S(_server.ClearTVserverLogs()));
     }
 
-    public override Task<StringValue> ClearWindowsEventLogs(Empty request, ServerCallContext context)
-    {
-      return Task.FromResult(S(_server.ClearWindowsEventLogs()));
-    }
-
     public override Task<Empty> Reboot(Empty request, ServerCallContext context)
     {
       _server.Reboot();

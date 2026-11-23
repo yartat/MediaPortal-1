@@ -288,10 +288,10 @@ namespace MPTvClient
     private void serverConnectionToolStripMenuItem_Click(object sender, EventArgs e)
     {
       frmServerConnectionConfig frm = new frmServerConnectionConfig();
-      frm.InitForm(ClientSettings.serverHostname);
+      frm.InitForm(ClientSettings.serverHostname, ClientSettings.connectionKey);
       if (frm.ShowDialog() == DialogResult.OK)
       {
-        frm.GetConfig(ref ClientSettings.serverHostname);
+        frm.GetConfig(ref ClientSettings.serverHostname, ref ClientSettings.connectionKey);
         ClientSettings.Save();
       }
     }

@@ -112,6 +112,9 @@ namespace MediaPortal.RemoteApi
           }
           lock (FileLock)
           {
+            if (Directory.Exists(KeyDirectory))
+              EnsureDirectoryOwnerIsTrusted(KeyDirectory);
+
             ServerKeyMaterial material = TryLoadMaterial(true);
             if (material != null)
               return material;
@@ -217,6 +220,28 @@ namespace MediaPortal.RemoteApi
       using (var rng = RandomNumberGenerator.Create())
         rng.GetBytes(bytes);
       return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    }
+
+    /// <summary>
+    /// ProgramData is writable for every user, so a user could create the key directory before the TV server does
+    /// and stay its owner (and thereby able to change its permissions). Such a directory is not used.
+    /// </summary>
+    private static void EnsureDirectoryOwnerIsTrusted(string directory)
+    {
+      var owner = Directory.GetAccessControl(directory, AccessControlSections.Owner)
+                           .GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
+      if (owner != null &&
+          (owner.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
+           owner.IsWellKnown(WellKnownSidType.BuiltinAdministratorsSid)))
+        return;
+      using (WindowsIdentity current = WindowsIdentity.GetCurrent())
+      {
+        if (owner != null && owner.Equals(current.User))
+          return;
+      }
+      throw new UnauthorizedAccessException(
+        "The directory " + directory + " is owned by " + (owner == null ? "an unknown account" : owner.Value) +
+        ". Delete it as an administrator and restart the TV service.");
     }
 
     private static void RestrictDirectoryToAdministrators(string directory)

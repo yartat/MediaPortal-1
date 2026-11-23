@@ -207,25 +207,6 @@ namespace WatchDogService
       return (object)sr;
     }
 
-    public string ClearWindowsEventLogs()
-    {
-      string result = "Done.";
-      string[] logNames = { "Application", "System"};
-      foreach (string strLogName in logNames)
-      {
-        EventLog e = new EventLog(strLogName);
-        try
-        {
-          e.Clear();
-        }
-        catch (Exception ex) 
-        {  
-           result = string.Format("Failed: {0}", ex);
-        }
-      }
-      return result;
-    }
-
     public string ClearTVserverLogs()
     {
       string logPath = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) +

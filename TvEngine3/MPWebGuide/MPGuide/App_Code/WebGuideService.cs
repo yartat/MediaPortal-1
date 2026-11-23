@@ -144,6 +144,7 @@ namespace WebGuide
         if (!server.IsMaster) continue;
         RemoteControl.Clear();
         RemoteControl.HostName = server.HostName;
+        RemoteControl.ConnectionKey = System.Configuration.ConfigurationManager.AppSettings["TvServerConnectionKey"];
         return;
 
       }

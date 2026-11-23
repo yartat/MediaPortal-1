@@ -157,10 +157,5 @@ namespace WatchDog
     {
       CallAndShowResult((client, options) => client.ClearTvServerLogs(E, options).Value);
     }
-
-    public void ClearWindowsEventLogs()
-    {
-      CallAndShowResult((client, options) => client.ClearWindowsEventLogs(E, options).Value);
-    }
   }
 }

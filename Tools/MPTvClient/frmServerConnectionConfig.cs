@@ -29,14 +29,16 @@ namespace MPTvClient
       InitializeComponent();
     }
 
-    public void InitForm(string hostname)
+    public void InitForm(string hostname, string connectionKey)
     {
       edHostname.Text = hostname;
+      edConnectionKey.Text = connectionKey;
     }
 
-    public void GetConfig(ref string hostname)
+    public void GetConfig(ref string hostname, ref string connectionKey)
     {
       hostname = edHostname.Text;
+      connectionKey = edConnectionKey.Text.Trim();
     }
   }
 }

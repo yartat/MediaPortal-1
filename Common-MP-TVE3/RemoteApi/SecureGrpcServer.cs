@@ -31,8 +31,13 @@ namespace MediaPortal.RemoteApi
   /// </summary>
   public sealed class ApiKeyInterceptor : Interceptor
   {
+    private const int LogIntervalMs = 10000;
+
     private readonly string _expected;
     private readonly Action<string> _log;
+    private readonly object _logLock = new object();
+    private int _lastLogTicks = unchecked(Environment.TickCount - LogIntervalMs);
+    private int _suppressed;
 
     public ApiKeyInterceptor(string apiKey, Action<string> log)
     {
@@ -45,10 +50,31 @@ namespace MediaPortal.RemoteApi
       Metadata.Entry entry = context.RequestHeaders.FirstOrDefault(h => h.Key == GrpcSecurity.AuthorizationHeader);
       if (entry == null || !GrpcSecurity.FixedTimeEquals(entry.Value, _expected))
       {
-        if (_log != null)
-          _log(string.Format("gRPC: rejected unauthenticated call {0} from {1}", context.Method, context.Peer));
+        LogRejected(context);
         throw new RpcException(new Status(StatusCode.Unauthenticated, "Invalid or missing API key"));
       }
+    }
+
+    /// <summary>Writes at most one line per <see cref="LogIntervalMs"/>, so a flood of bad calls cannot fill the log.</summary>
+    private void LogRejected(ServerCallContext context)
+    {
+      if (_log == null)
+        return;
+      string message = null;
+      lock (_logLock)
+      {
+        int now = Environment.TickCount;
+        if (unchecked(now - _lastLogTicks) < LogIntervalMs)
+        {
+          _suppressed++;
+          return;
+        }
+        _lastLogTicks = now;
+        message = string.Format("gRPC: rejected unauthenticated call {0} from {1}{2}", context.Method, context.Peer,
+                                _suppressed > 0 ? " (" + _suppressed + " more rejected calls not logged)" : string.Empty);
+        _suppressed = 0;
+      }
+      _log(message);
     }
 
     public override Task<TResponse> UnaryServerHandler<TRequest, TResponse>(TRequest request, ServerCallContext context,

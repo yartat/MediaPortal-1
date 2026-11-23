@@ -20,7 +20,6 @@ service WatchDog {
   // Zip archive with the TV server logs and the Application/System event logs, streamed in chunks.
   rpc ReadLog (google.protobuf.Empty) returns (stream LogChunk);
   rpc ClearTvServerLogs (google.protobuf.Empty) returns (google.protobuf.StringValue);
-  rpc ClearWindowsEventLogs (google.protobuf.Empty) returns (google.protobuf.StringValue);
   rpc Reboot (google.protobuf.Empty) returns (google.protobuf.Empty);
   rpc Shutdown (google.protobuf.Empty) returns (google.protobuf.Empty);
   rpc PowerOff (google.protobuf.Empty) returns (google.protobuf.Empty);

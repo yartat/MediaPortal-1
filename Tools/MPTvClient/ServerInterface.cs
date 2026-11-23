@@ -77,6 +77,7 @@ namespace MPTvClient
         if (!GetDatabaseConnectionString(out connStr, out provider))
           return false;
         RemoteControl.HostName = hostname;
+        RemoteControl.ConnectionKey = ClientSettings.connectionKey;
         Gentle.Framework.ProviderFactory.SetDefaultProviderConnectionString(connStr);
         me = new User();
         me.IsAdmin = true;

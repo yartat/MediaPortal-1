@@ -18,6 +18,12 @@
                 </tr>
                 <tr>
                     <td>
+                        Connection key:</td>
+                    <td colspan="2">
+                        <asp:TextBox ID="idConnectionKey" runat="server"></asp:TextBox></td>
+                </tr>
+                <tr>
+                    <td>
                     </td>
                     <td>
                         <asp:Button ID="idTest" runat="server" Text="Test" OnClick="idTest_Click" /></td>

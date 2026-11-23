@@ -87,6 +87,7 @@ namespace MPTvClient
     public static string playerPath = "";
     public static string playerArgs = "{0}";
     public static string serverHostname = "";
+    public static string connectionKey = "";
     public static bool useOverride = false;
     public static string overrideURL = "";
     public static bool alwaysPerformConnectionChecks;
@@ -105,6 +106,7 @@ namespace MPTvClient
             playerPath = Properties.Settings.Default.playerPath;
             playerArgs = Properties.Settings.Default.playerArgs;
             serverHostname = Properties.Settings.Default.serverHostname;
+            connectionKey = Properties.Settings.Default.connectionKey;
             useOverride = Properties.Settings.Default.useOverride;
             overrideURL = Properties.Settings.Default.overrideURL;
             alwaysPerformConnectionChecks = Properties.Settings.Default.alwaysPerformConnectionChecks;
@@ -119,6 +121,7 @@ namespace MPTvClient
             Properties.Settings.Default.playerPath = playerPath;
             Properties.Settings.Default.playerArgs = playerArgs;
             Properties.Settings.Default.serverHostname = serverHostname;
+            Properties.Settings.Default.connectionKey = connectionKey;
             Properties.Settings.Default.useOverride = useOverride;
             Properties.Settings.Default.overrideURL = overrideURL;
             Properties.Settings.Default.alwaysPerformConnectionChecks = alwaysPerformConnectionChecks;

@@ -752,12 +752,6 @@ namespace WatchDog
       ClearDir(Config.GetFolder(Config.Dir.Log));
     }
 
-    private void menuItemClearWEventLogOnTVserver_Click(object sender, EventArgs e)
-    {
-      TVServerManager mngr = new TVServerManager();
-      mngr.ClearWindowsEventLogs();
-    }
-
     private void menuItemClearTVserverLogs_Click(object sender, EventArgs e)
     {
       TVServerManager mngr = new TVServerManager();

@@ -46,6 +46,22 @@ always `mediaportal-tvserver`, so clients can address the server by host name, F
 To revoke all clients, stop the TV service, delete the `grpc` directory and start the service again.
 This creates a new connection key, which then has to be entered on every client.
 
+## Where clients take the connection key from
+
+| Client | Setting |
+|---|---|
+| MediaPortal, TV plugin, WatchDog | MediaPortal Configuration, `MediaPortal.xml` (`tvservice/connectionkey`) |
+| MPTvClient | Settings, Server connection config, *Connection key* |
+| MPWebGuide | `TvServerConnectionKey` in `Web.config`; the install page (`install/Default.aspx`) writes it |
+| TV-Server Configuration (SetupTv) on another computer | `TvServerConnectionKey` in `SetupTv.exe.config` |
+
+The TV server refuses to use `%ProgramData%\Team MediaPortal\MediaPortal TV Server\grpc` when another
+account than SYSTEM, Administrators or the service account owns it (a user could have created it first).
+Delete the directory as an administrator in that case. Calls with a wrong API key are logged at most once
+every 10 seconds.
+
+WatchDog no longer offers to clear the Windows event logs of the TV server.
+
 ## Building
 
 Messages and stubs are generated from the `.proto` files at build time (`Grpc.targets`, using
