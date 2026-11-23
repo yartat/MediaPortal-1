@@ -49,6 +49,8 @@ namespace MpeCore.Classes.InstallerType
       {
         FileItem fileItem = new FileItem(file);
         string destination = fileItem.ExpandedDestinationFilename.Replace("[DEFAULT]", list);
+        if (!MpeInstaller.IsKnownInstallLocation(destination))
+          continue;
 
         FileItem item = packageClass.UniqueFileList.GetByLocalFileName(fileItem);
         if (item == null)

@@ -83,6 +83,8 @@ namespace MpeCore.Classes.ZipProvider
     {
       try
       {
+        if (!MpeInstaller.IsKnownInstallLocation(extractLocation))
+          return false;
         var fs = new FileStream(extractLocation, FileMode.Create);
         _zipPackageFile[item.ZipFileName].Extract(fs);
         fs.Close();

@@ -46,7 +46,7 @@ namespace MediaPortal.Util
       try
       {
         string parserIndexFile = Config.GetFile(Config.Dir.Config, "scripts\\VDBParserStrings.xml");
-        string parserIndexUrl = @"http://install.team-mediaportal.com/MP1/VDBParserStrings.xml";
+        string parserIndexUrl = @"https://install.team-mediaportal.com/MP1/VDBParserStrings.xml";
         XmlDocument doc = new XmlDocument();
         
         if (!File.Exists(parserIndexFile))

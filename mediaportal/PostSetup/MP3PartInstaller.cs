@@ -361,6 +361,13 @@ namespace PostSetup
         using (ZipFile zip = ZipFile.Read(new MemoryStream(indata)))
         {
           zip.ReadProgress += zip_ReadProgress;
+          foreach (ZipEntry entry in zip)
+          {
+            if (!entry.FileName.Contains(excludeDir))
+            {
+              EnsureEntryInside(targetDirectory, entry.FileName);
+            }
+          }
           foreach (ZipEntry e in zip)
           {
             if (!e.FileName.Contains(excludeDir))
@@ -374,7 +381,24 @@ namespace PostSetup
       }
       catch (Exception e)
       {
-        throw e;
+        throw;
+      }
+    }
+
+    /// <summary>
+    /// A zip entry like "..\..\x.dll" or "C:\x.dll" would be written outside of the target directory ("Zip Slip").
+    /// </summary>
+    private static void EnsureEntryInside(string targetDirectory, string entryName)
+    {
+      string root = Path.GetFullPath(targetDirectory);
+      if (!root.EndsWith(Path.DirectorySeparatorChar.ToString()))
+      {
+        root += Path.DirectorySeparatorChar;
+      }
+      string destination = Path.GetFullPath(Path.Combine(root, entryName));
+      if (!destination.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+      {
+        throw new InvalidDataException("Zip entry points outside the target directory: " + entryName);
       }
     }
 

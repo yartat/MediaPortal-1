@@ -89,7 +89,7 @@ namespace MediaPortal.GUI.Settings
 
     // grabber index holds information/urls of available grabbers to download
     private string _grabberIndexFile = Config.GetFile(Config.Dir.Config, "MovieInfoGrabber.xml");
-    private string _grabberIndexUrl = @"http://install.team-mediaportal.com/MP1/MovieInfoGrabber_V16.xml";
+    private string _grabberIndexUrl = @"https://install.team-mediaportal.com/MP1/MovieInfoGrabber_V16.xml";
     private Dictionary<string, ComboBoxItemDatabase> _grabberList;
 
     private int m_iCount = 1;
@@ -480,11 +480,11 @@ namespace MediaPortal.GUI.Settings
       }
 
       string parserIndexFile = Config.GetFile(Config.Dir.Config, "scripts\\VDBParserStrings.xml");
-      string parserIndexUrl = @"http://install.team-mediaportal.com/MP1/VDBParserStrings.xml";
+      string parserIndexUrl = @"https://install.team-mediaportal.com/MP1/VDBParserStrings.xml";
       string internalGrabberScriptFile = Config.GetFile(Config.Dir.Config, "scripts\\InternalActorMoviesGrabber.csscript");
-      string internalActorsGrabberScriptUrl = @"http://install.team-mediaportal.com/MP1/InternalGrabber/InternalActorMoviesGrabber.csscript";
+      string internalActorsGrabberScriptUrl = @"https://install.team-mediaportal.com/MP1/InternalGrabber/InternalActorMoviesGrabber.csscript";
       string internalMovieImagesGrabberScriptFile = Config.GetFile(Config.Dir.Config, "scripts\\InternalMovieImagesGrabber.csscript");
-      string internalMovieImagesGrabberScriptUrl = @"http://install.team-mediaportal.com/MP1/InternalGrabber/InternalMovieImagesGrabber.csscript";
+      string internalMovieImagesGrabberScriptUrl = @"https://install.team-mediaportal.com/MP1/InternalGrabber/InternalMovieImagesGrabber.csscript";
       
       // VDB parser update
       progressDialog.SetHeading("Updating VDBparser file......");
@@ -558,6 +558,15 @@ namespace MediaPortal.GUI.Settings
           }
 
           string url = sectionNodes[i].Attributes["url"].Value;
+          if (url.StartsWith("http://install.team-mediaportal.com/", StringComparison.OrdinalIgnoreCase))
+          {
+            url = "https://" + url.Substring("http://".Length);
+          }
+          if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+          {
+            Log.Warn("Grabber download skipped, only https is allowed: {0}", url);
+            continue;
+          }
           string id = Path.GetFileName(url);
           progressDialog.SetLine(1, GUILocalizeStrings.Get(300034) + id); //Downloading grabber:
           progressDialog.SetLine(2, GUILocalizeStrings.Get(300035)); // Processing grabbers

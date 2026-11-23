@@ -340,13 +340,19 @@ namespace TvEngine
                   Log.Info("xmltv: extracting zip file {0} to location {1}", path, newLoc);
                   using (ZipFile zip = new ZipFile(path))
                   {
-                    zip.ExtractAll(newLoc, true);
+                    ExtractZipSafe(zip, newLoc);
                     if (RenameFileInZIp == true)
                     {
                       sourceFileName = newLoc + (zip.EntryFileNames[0]);
                       destinationFileName = newLoc + "tvguide.xml";
                     }
                   }
+                }
+                catch (InvalidDataException ex3)
+                {
+                  Log.Error("xmltv: rejected zip file {0}: {1}", path, ex3.Message);
+                  waitingForFileAccess = false;
+                  break;
                 }
                 catch (Exception ex2)
                 {
@@ -563,6 +569,28 @@ namespace TvEngine
     #endregion
 
     #region private members
+
+    /// <summary>
+    /// Extracts a downloaded zip file only when every entry stays inside <paramref name="targetDirectory"/>
+    /// (a name like "..\..\x.dll" or "C:\x.dll" would be written outside of it, "Zip Slip").
+    /// </summary>
+    private static void ExtractZipSafe(ZipFile zip, string targetDirectory)
+    {
+      string root = Path.GetFullPath(targetDirectory);
+      if (!root.EndsWith(Path.DirectorySeparatorChar.ToString()))
+      {
+        root += Path.DirectorySeparatorChar;
+      }
+      foreach (ZipEntry entry in zip)
+      {
+        string destination = Path.GetFullPath(Path.Combine(root, entry.FileName));
+        if (!destination.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+        {
+          throw new InvalidDataException("Zip entry points outside the target directory: " + entry.FileName);
+        }
+      }
+      zip.ExtractAll(targetDirectory, true);
+    }
 
     private void _timer1_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
     {

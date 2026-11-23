@@ -42,6 +42,8 @@ namespace MpeCore.Classes.InstallerType
       try
       {
         string destination = fileItem.ExpandedDestinationFilename;
+        if (!MpeInstaller.IsKnownInstallLocation(destination))
+          return;
 
         FileItem item = packageClass.UniqueFileList.GetByLocalFileName(fileItem);
         if (item == null)

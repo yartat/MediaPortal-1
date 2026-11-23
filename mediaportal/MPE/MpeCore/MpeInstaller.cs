@@ -18,6 +18,7 @@
 
 #endregion
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 using MpeCore.Classes.ProviderHelpers;
@@ -153,6 +154,56 @@ namespace MpeCore
     /// </summary>
     /// <param name="localFile">The template of file or path.</param>
     /// <returns></returns>
+    /// <summary>
+    /// Windows folders an extension may not install into, even through a path template. The folders of
+    /// MediaPortal and the TV server, the fonts folder and the data folders of the user stay allowed.
+    /// </summary>
+    private static readonly string[] ForbiddenWindowsFolders =
+      {
+        "%Windows%", "%System%", "%SystemX86%", "%ProgramFiles%", "%ProgramFilesX86%", "%CommonProgramFiles%",
+        "%CommonProgramFilesX86%", "%Startup%", "%CommonStartup%"
+      };
+
+    /// <summary>
+    /// Checks that a file is written below one of the known folders (MediaPortal, TV server, fonts, user data).
+    /// A destination like "%Base%\..\..\Windows\x.dll" or "C:\Windows\x.dll" is refused.
+    /// </summary>
+    public static bool IsKnownInstallLocation(string path)
+    {
+      string full = Path.GetFullPath(path);
+      // The startup folders lie below the start menu folder, which is allowed (shortcuts), but they run programs at logon.
+      foreach (Environment.SpecialFolder startup in new[] { Environment.SpecialFolder.Startup, Environment.SpecialFolder.CommonStartup })
+      {
+        string startupFolder = Environment.GetFolderPath(startup);
+        if (!string.IsNullOrEmpty(startupFolder) &&
+            full.StartsWith(Path.GetFullPath(startupFolder) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        {
+          return false;
+        }
+      }
+      foreach (var pathProvider in PathProviders)
+      {
+        foreach (KeyValuePair<string, string> folder in pathProvider.Value.Paths)
+        {
+          if (string.IsNullOrEmpty(folder.Value) ||
+              (pathProvider.Key == "WindowsPaths" && Array.IndexOf(ForbiddenWindowsFolders, folder.Key) >= 0))
+          {
+            continue;
+          }
+          string root = Path.GetFullPath(folder.Value);
+          if (!root.EndsWith(Path.DirectorySeparatorChar.ToString()))
+          {
+            root += Path.DirectorySeparatorChar;
+          }
+          if (full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+          {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
     public static string TransformInRealPath(string localFile)
     {
       foreach (var pathProvider in PathProviders)

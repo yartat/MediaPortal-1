@@ -187,7 +187,7 @@ namespace MediaPortal.GUI.Video
 
     // grabber index holds information/urls of available grabbers to download
     private static string _grabberIndexFile = Config.GetFile(Config.Dir.Config, "MovieInfoGrabber.xml");
-    private static string _grabberIndexUrl = @"http://install.team-mediaportal.com/MP1/MovieInfoGrabber_V16.xml";
+    private static string _grabberIndexUrl = @"https://install.team-mediaportal.com/MP1/MovieInfoGrabber_V16.xml";
     private static Dictionary<string, ComboBoxItemDatabase> _grabberList;
 
     private int _resetCount;
@@ -2709,11 +2709,11 @@ namespace MediaPortal.GUI.Video
       if (internalScript)
       {
         string parserIndexFile = Config.GetFile(Config.Dir.Config, "scripts\\VDBParserStrings.xml");
-        string parserIndexUrl = @"http://install.team-mediaportal.com/MP1/VDBParserStrings.xml";
+        string parserIndexUrl = @"https://install.team-mediaportal.com/MP1/VDBParserStrings.xml";
         string internalGrabberScriptFile = Config.GetFile(Config.Dir.Config, "scripts\\InternalActorMoviesGrabber.csscript");
-        string internalGrabberScriptUrl = @"http://install.team-mediaportal.com/MP1/InternalGrabber/InternalActorMoviesGrabber.csscript";
+        string internalGrabberScriptUrl = @"https://install.team-mediaportal.com/MP1/InternalGrabber/InternalActorMoviesGrabber.csscript";
         string internalMovieImagesGrabberScriptFile = Config.GetFile(Config.Dir.Config, "scripts\\InternalMovieImagesGrabber.csscript");
-        string internalMovieImagesGrabberScriptUrl = @"http://install.team-mediaportal.com/MP1/InternalGrabber/InternalMovieImagesGrabber.csscript";
+        string internalMovieImagesGrabberScriptUrl = @"https://install.team-mediaportal.com/MP1/InternalGrabber/InternalMovieImagesGrabber.csscript";
 
         // VDB parser update
         progressDialog.SetHeading(GUILocalizeStrings.Get(1316)); // Updating internal scripts...
@@ -2797,6 +2797,15 @@ namespace MediaPortal.GUI.Video
           }
 
           string url = sectionNodes[i].Attributes["url"].Value;
+          if (url.StartsWith("http://install.team-mediaportal.com/", StringComparison.OrdinalIgnoreCase))
+          {
+            url = "https://" + url.Substring("http://".Length);
+          }
+          if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+          {
+            Log.Warn("Grabber download skipped, only https is allowed: {0}", url);
+            continue;
+          }
           string id = Path.GetFileName(url);
           progressDialog.SetLine(1, GUILocalizeStrings.Get(300034) + id); // Downloading grabber:
           progressDialog.SetLine(2, GUILocalizeStrings.Get(300035));
