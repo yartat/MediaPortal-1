@@ -1,0 +1,542 @@
+// MediaPortal TV Server control API (replaces the former .NET Remoting "TvControl" endpoint).
+//
+// Transport: gRPC over TLS. Every call must carry the metadata header
+//   authorization: Bearer <api key>
+// See Common-MP-TVE3/RemoteApi/README.md for how keys and certificates are provisioned.
+//
+// Conventions:
+//  * Date/time values are .NET DateTime ticks in the server's local time (field suffix "_ticks"),
+//    TimeSpan values are .NET TimeSpan ticks. This keeps the semantics of the old Remoting API.
+//  * Hardware/DirectShow enums (modulation, FEC, polarisation, ...) are transported as their
+//    numeric C# value (int32); the C# enum type is named in the field comment.
+//  * Methods that took "ref"/"out" parameters return the updated values in their reply.
+
+syntax = "proto3";
+
+package mediaportal.tvcontrol.v1;
+
+option csharp_namespace = "TvControl.Grpc.Proto";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
+
+// ---------------------------------------------------------------------------------------------
+// Enums (numeric values match the C# enums)
+// ---------------------------------------------------------------------------------------------
+
+enum TvResult {
+  TV_RESULT_SUCCEEDED = 0;
+  TV_RESULT_ALL_CARDS_BUSY = 1;
+  TV_RESULT_CHANNEL_IS_SCRAMBLED = 2;
+  TV_RESULT_NO_VIDEO_AUDIO_DETECTED = 3;
+  TV_RESULT_NO_SIGNAL_DETECTED = 4;
+  TV_RESULT_UNKNOWN_ERROR = 5;
+  TV_RESULT_UNABLE_TO_START_GRAPH = 6;
+  TV_RESULT_UNKNOWN_CHANNEL = 7;
+  TV_RESULT_NO_TUNING_DETAILS = 8;
+  TV_RESULT_CHANNEL_NOT_MAPPED_TO_ANY_CARD = 9;
+  TV_RESULT_CARD_IS_DISABLED = 10;
+  TV_RESULT_CONNECTION_TO_SLAVE_FAILED = 11;
+  TV_RESULT_NOT_THE_OWNER = 12;
+  TV_RESULT_GRAPH_BUILDING_FAILED = 13;
+  TV_RESULT_SW_ENCODER_MISSING = 14;
+  TV_RESULT_NO_FREE_DISK_SPACE = 15;
+  TV_RESULT_NO_PMT_FOUND = 16;
+  TV_RESULT_TUNE_CANCELLED = 17;
+}
+
+enum ChannelState {
+  CHANNEL_STATE_NOT_TUNABLE = 0;
+  CHANNEL_STATE_TUNABLE = 1;
+  CHANNEL_STATE_TIMESHIFTING = 2;
+  CHANNEL_STATE_RECORDING = 3;
+}
+
+enum TvStoppedReason {
+  TV_STOPPED_REASON_UNKNOWN = 0;
+  TV_STOPPED_REASON_RECORDING_STARTED = 1;
+  TV_STOPPED_REASON_KICKED_BY_ADMIN = 2;
+  TV_STOPPED_REASON_HEART_BEAT_TIME_OUT = 3;
+  TV_STOPPED_REASON_OWNER_CHANGED_TS = 4;
+}
+
+enum CardType {
+  CARD_TYPE_ANALOG = 0;
+  CARD_TYPE_DVB_S = 1;
+  CARD_TYPE_DVB_T = 2;
+  CARD_TYPE_DVB_C = 3;
+  CARD_TYPE_ATSC = 4;
+  CARD_TYPE_RADIO_WEB_STREAM = 5;
+  CARD_TYPE_DVB_IP = 6;
+  CARD_TYPE_UNKNOWN = 7;
+}
+
+enum DiSEqCDirection {
+  DISEQC_DIRECTION_WEST = 0;
+  DISEQC_DIRECTION_EAST = 1;
+  DISEQC_DIRECTION_UP = 2;
+  DISEQC_DIRECTION_DOWN = 3;
+}
+
+enum CiMenuState {
+  CI_MENU_STATE_CLOSED = 0;
+  CI_MENU_STATE_OPENED = 1;
+  CI_MENU_STATE_READY = 2;
+  CI_MENU_STATE_REQUEST = 3;
+  CI_MENU_STATE_NO_CHOICES = 4;
+  CI_MENU_STATE_ERROR = 5;
+  CI_MENU_STATE_CLOSE = 6;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Domain messages
+// ---------------------------------------------------------------------------------------------
+
+message User {
+  string name = 1;
+  bool is_admin = 2;
+  int32 card_id = 3;
+  int32 failed_card_id = 4;
+  int32 sub_channel = 5;
+  bool is_free_to_air = 6;
+  int32 id_channel = 7;
+  TvStoppedReason tv_stopped_reason = 8;
+  int64 heart_beat_ticks = 9;
+  optional int32 priority = 10;
+  bool has_channel_states = 11;           // false = ChannelStates is null
+  map<int32, ChannelState> channel_states = 12;
+}
+
+message Country {
+  int32 id = 1;
+  string name = 2;
+  string code = 3;
+  int32 index = 4;
+  int32 video_standard = 5;               // DirectShowLib.AnalogVideoStandard
+}
+
+message DvbBaseChannel {
+  string name = 1;
+  string provider = 2;
+  int64 frequency = 3;
+  int32 network_id = 4;
+  int32 service_id = 5;
+  int32 transport_id = 6;
+  int32 pmt_pid = 7;
+  int32 logical_channel_number = 8;
+  bool is_radio = 9;
+  bool is_tv = 10;
+  bool free_to_air = 11;
+}
+
+message AnalogChannel {
+  string name = 1;
+  int64 frequency = 2;
+  int32 channel_number = 3;
+  Country country = 4;
+  bool is_radio = 5;
+  int32 tuner_source = 6;                 // DirectShowLib.TunerInputType
+  int32 video_source = 7;                 // AnalogChannel.VideoInputType
+  int32 audio_source = 8;                 // AnalogChannel.AudioInputType
+  bool is_vcr_signal = 9;
+}
+
+message DvbCChannel {
+  DvbBaseChannel base = 1;
+  int32 modulation = 2;                   // DirectShowLib.BDA.ModulationType
+  int32 symbol_rate = 3;
+}
+
+message DvbSChannel {
+  DvbBaseChannel base = 1;
+  int32 polarisation = 2;                 // DirectShowLib.BDA.Polarisation
+  int32 symbol_rate = 3;
+  int32 switching_frequency = 4;
+  int32 diseqc = 5;                       // DisEqcType
+  int32 band_type = 6;                    // BandType
+  int32 modulation = 7;                   // DirectShowLib.BDA.ModulationType
+  int32 inner_fec_rate = 8;               // DirectShowLib.BDA.BinaryConvolutionCodeRate
+  int32 pilot = 9;                        // DirectShowLib.BDA.Pilot
+  int32 roll_off = 10;                    // DirectShowLib.BDA.RollOff
+  int32 satellite_index = 11;
+}
+
+message DvbTChannel {
+  DvbBaseChannel base = 1;
+  int32 band_width = 2;
+  int32 offset = 3;
+}
+
+message AtscChannel {
+  DvbBaseChannel base = 1;
+  int32 physical_channel = 2;
+  int32 major_channel = 3;
+  int32 minor_channel = 4;
+  int32 modulation = 5;                   // DirectShowLib.BDA.ModulationType
+}
+
+message DvbIpChannel {
+  DvbBaseChannel base = 1;
+  string url = 2;
+}
+
+message RadioWebStreamChannel {
+  string name = 1;
+  string url = 2;
+  Country country = 3;
+}
+
+// Polymorphic TvLibrary.Interfaces.IChannel. An unset Channel field means null.
+message Channel {
+  oneof kind {
+    AnalogChannel analog = 1;
+    DvbCChannel dvb_c = 2;
+    DvbSChannel dvb_s = 3;
+    DvbTChannel dvb_t = 4;
+    AtscChannel atsc = 5;
+    DvbIpChannel dvb_ip = 6;
+    RadioWebStreamChannel radio_web_stream = 7;
+  }
+}
+
+message VirtualCard {
+  User user = 1;
+  string remote_server = 2;
+  int32 recording_format = 3;
+  optional string recording_folder = 4;
+  optional string timeshift_folder = 5;
+  int32 nr_of_other_users_timeshifting_on_card = 6;
+}
+
+message AudioStream {
+  bool is_analog = 1;
+  string language = 2;
+  int32 stream_type = 3;                  // TvLibrary.Interfaces.AudioStreamType
+  int32 pid = 4;
+  int32 audio_mode = 5;                   // DirectShowLib.TVAudioMode (analog only)
+}
+
+message VideoStream {
+  int32 stream_type = 1;                  // TvLibrary.Interfaces.VideoStreamType
+  int32 pid = 2;
+  int32 pcr_pid = 3;
+}
+
+message RtspClient {
+  bool is_active = 1;
+  string ip_address = 2;
+  string stream_name = 3;
+  string description = 4;
+  int64 date_time_started_ticks = 5;
+}
+
+message MpGenre {
+  int32 id = 1;
+  string name = 2;
+  bool is_movie = 3;
+  bool enabled = 4;
+  repeated string mapped_program_genres = 5;
+}
+
+message CiMenuEntry {
+  int32 index = 1;
+  string message = 2;
+}
+
+message CiMenu {
+  string title = 1;
+  string subtitle = 2;
+  string bottom_text = 3;
+  CiMenuState state = 4;
+  int32 num_choices = 5;
+  repeated CiMenuEntry entries = 6;
+  string request_text = 7;
+  int32 answer_length = 8;
+  bool password = 9;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Requests / replies
+// ---------------------------------------------------------------------------------------------
+
+message CardRequest { int32 card_id = 1; }
+message IdRequest { int32 id = 1; }
+message UserRequest { User user = 1; }
+message CardChannelRequest { int32 card_id = 1; Channel channel = 2; }
+message CardUserRequest { int32 card_id = 1; User user = 2; }
+message CardBoolRequest { int32 card_id = 1; bool value = 2; }
+message CardInt32Request { int32 card_id = 1; int32 value = 2; }
+message CardByteRequest { int32 card_id = 1; uint32 value = 2; }
+message UserInt32Request { User user = 1; int32 value = 2; }
+message UserBoolRequest { User user = 1; bool value = 2; }
+
+message StringList { repeated string values = 1; }
+message ChannelList { repeated Channel channels = 1; }
+message UserList { repeated User users = 1; }
+message AudioStreamList { repeated AudioStream streams = 1; }
+message RtspClientList { repeated RtspClient clients = 1; }
+message MpGenreList { repeated MpGenre genres = 1; }
+message ChannelStateMap { bool is_null = 1; map<int32, ChannelState> states = 2; }
+
+message UserReply { User user = 1; }
+message UserBoolReply { User user = 1; bool value = 2; }
+message UserInt32Reply { User user = 1; int32 value = 2; }
+message UserStringReply { User user = 1; string value = 2; bool is_null = 3; }
+message UserChannelReply { User user = 1; Channel channel = 2; }
+message CardTypeReply { CardType value = 1; }
+message ChannelStateReply { ChannelState value = 1; }
+message TvStoppedReasonReply { TvStoppedReason value = 1; }
+message AudioStreamReply { AudioStream stream = 1; }
+message VideoStreamReply { VideoStream stream = 1; }
+message NullableStringReply { string value = 1; bool is_null = 2; }
+message NullableBytesReply { bytes value = 1; bool is_null = 2; }
+
+message VirtualCardBoolReply {
+  bool value = 1;
+  VirtualCard card = 2;
+}
+
+message TvResultReply {
+  TvResult result = 1;
+  User user = 2;
+  string file_name = 3;
+  VirtualCard card = 4;
+  bool card_changed = 5;
+}
+
+message IsAnyCardRecordingOrTimeshiftingReply {
+  bool value = 1;
+  bool is_user_ts = 2;
+  bool is_any_user_ts = 3;
+  bool is_rec = 4;
+}
+
+message OnNewScheduleRequest {
+  repeated int32 schedule_ids = 1;
+  repeated int32 conflict_ids = 2;
+}
+
+message DatabaseConnectionString {
+  string connection_string = 1;
+  string provider = 2;
+}
+
+message AllRecordingChannelsReply {
+  repeated int32 recording_channels = 1;
+  repeated int32 timeshifting_channels = 2;
+  repeated int32 unavailable_channels = 3;
+  repeated int32 available_channels = 4;
+}
+
+message ChannelStatesForGroupRequest { int32 id_group = 1; User user = 2; }
+message ChannelStateRequest { int32 id_channel = 1; User user = 2; }
+message RecordingScheduleRequest { int32 card_id = 1; int32 channel_id = 2; }
+
+message DiSEqCDriveMotorRequest {
+  int32 card_id = 1;
+  DiSEqCDirection direction = 2;
+  uint32 number_of_steps = 3;
+}
+
+message DiSEqCPositionReply {
+  int32 satellite_position = 1;
+  int32 steps_azimuth = 2;
+  int32 steps_elevation = 3;
+}
+
+message SendMenuAnswerRequest { int32 card_id = 1; bool cancel = 2; string answer = 3; }
+
+message IsTimeToRecordRequest {
+  int64 time_ticks = 1;
+  optional int32 schedule_id = 2;
+}
+
+message TeletextPageRequest { User user = 1; int32 page_number = 2; int32 sub_page_number = 3; }
+
+message TimeShiftPositionRequest { User user = 1; int64 position = 2; int64 buffer_id = 3; }
+message TimeShiftPositionReply { User user = 1; bool value = 2; int64 position = 3; int64 buffer_id = 4; }
+
+message CopyTimeShiftFileRequest {
+  int64 position1 = 1;
+  string buffer_file1 = 2;
+  int64 position2 = 3;
+  string buffer_file2 = 4;
+  string recording_file = 5;
+}
+
+message SetAudioStreamRequest { User user = 1; AudioStream stream = 2; }
+
+message UserFileRequest { User user = 1; string file_name = 2; }
+
+message StartTimeShiftingChannelRequest {
+  User user = 1;
+  int32 id_channel = 2;
+  bool force_card_id = 3;
+}
+
+message StopTimeShiftingRequest { User user = 1; TvStoppedReason reason = 2; }
+
+message TuneRequest { User user = 1; Channel channel = 2; int32 id_channel = 3; }
+
+message StreamQualityCountersReply { int32 total_ts_packets = 1; int32 discontinuity_counter = 2; }
+
+// ---------------------------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------------------------
+
+service TvControlService {
+  // Server
+  rpc GetAssemblyVersion (google.protobuf.Empty) returns (google.protobuf.StringValue);
+  rpc GetIdServer (google.protobuf.Empty) returns (google.protobuf.Int32Value);
+  rpc GetCards (google.protobuf.Empty) returns (google.protobuf.Int32Value);
+  rpc GetIsMaster (google.protobuf.Empty) returns (google.protobuf.BoolValue);
+  rpc GetActiveStreams (google.protobuf.Empty) returns (google.protobuf.Int32Value);
+  rpc GetEpgGrabberEnabled (google.protobuf.Empty) returns (google.protobuf.BoolValue);
+  rpc SetEpgGrabberEnabled (google.protobuf.BoolValue) returns (google.protobuf.Empty);
+  rpc GetServerIpAdresses (google.protobuf.Empty) returns (StringList);
+  rpc GetStreamingPort (google.protobuf.Empty) returns (google.protobuf.Int32Value);
+  rpc GetStreamingClients (google.protobuf.Empty) returns (RtspClientList);
+  rpc ClearCache (google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc Restart (google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc GetDatabaseConnectionString (google.protobuf.Empty) returns (DatabaseConnectionString);
+  rpc SetDatabaseConnectionString (DatabaseConnectionString) returns (google.protobuf.Empty);
+  rpc OnNewSchedule (OnNewScheduleRequest) returns (google.protobuf.Empty);
+  rpc GetGenres (google.protobuf.Empty) returns (StringList);
+  rpc GetProgramGenres (google.protobuf.Empty) returns (StringList);
+  rpc GetMpGenres (google.protobuf.Empty) returns (MpGenreList);
+  rpc GetRadioChannelGroupNames (google.protobuf.Empty) returns (StringList);
+  rpc IsTimeToRecord (IsTimeToRecordRequest) returns (google.protobuf.BoolValue);
+
+  // Cards
+  rpc InitConditionalAccess (CardRequest) returns (google.protobuf.BoolValue);
+  rpc CardId (IdRequest) returns (google.protobuf.Int32Value);
+  rpc Enabled (CardRequest) returns (google.protobuf.BoolValue);
+  rpc Type (CardRequest) returns (CardTypeReply);
+  rpc CardName (CardRequest) returns (NullableStringReply);
+  rpc CanTune (CardChannelRequest) returns (google.protobuf.BoolValue);
+  rpc CardPresent (CardRequest) returns (google.protobuf.BoolValue);
+  rpc CardRemove (CardRequest) returns (google.protobuf.Empty);
+  rpc CardDevice (CardRequest) returns (NullableStringReply);
+  rpc TunerLocked (CardRequest) returns (google.protobuf.BoolValue);
+  rpc SignalQuality (CardRequest) returns (google.protobuf.Int32Value);
+  rpc SignalLevel (CardRequest) returns (google.protobuf.Int32Value);
+  rpc UpdateSignalSate (CardRequest) returns (google.protobuf.Empty);
+  rpc IsScanning (CardRequest) returns (google.protobuf.BoolValue);
+  rpc IsGrabbingEpg (CardRequest) returns (google.protobuf.BoolValue);
+  rpc Scan (CardChannelRequest) returns (ChannelList);
+  rpc ScanNIT (CardChannelRequest) returns (ChannelList);
+  rpc MinChannel (CardRequest) returns (google.protobuf.Int32Value);
+  rpc MaxChannel (CardRequest) returns (google.protobuf.Int32Value);
+  rpc GetRecordingSchedule (RecordingScheduleRequest) returns (google.protobuf.Int32Value);
+  rpc IsCardInUse (CardRequest) returns (UserBoolReply);
+  rpc GetSubChannels (CardRequest) returns (google.protobuf.Int32Value);
+  rpc IsTunedToTransponder (CardChannelRequest) returns (google.protobuf.BoolValue);
+  rpc GetUserForCard (CardRequest) returns (UserReply);
+  rpc GetUsersForCard (CardRequest) returns (UserList);
+  rpc IsOwner (CardUserRequest) returns (google.protobuf.BoolValue);
+  rpc RemoveUserFromOtherCards (CardUserRequest) returns (google.protobuf.Empty);
+  rpc SupportsSubChannels (CardRequest) returns (google.protobuf.BoolValue);
+  rpc NumberOfChannelsDecrypting (CardRequest) returns (google.protobuf.Int32Value);
+  rpc HasCA (CardRequest) returns (google.protobuf.BoolValue);
+  rpc SupportsQualityControl (CardRequest) returns (google.protobuf.BoolValue);
+  rpc SupportsBitRateModes (CardRequest) returns (google.protobuf.BoolValue);
+  rpc SupportsPeakBitRateMode (CardRequest) returns (google.protobuf.BoolValue);
+  rpc SupportsBitRate (CardRequest) returns (google.protobuf.BoolValue);
+  rpc ReloadCardConfiguration (CardRequest) returns (google.protobuf.Empty);
+  rpc GetQualityType (CardRequest) returns (google.protobuf.Int32Value);        // QualityType
+  rpc SetQualityType (CardInt32Request) returns (google.protobuf.Empty);
+  rpc GetBitRateMode (CardRequest) returns (google.protobuf.Int32Value);        // VIDEOENCODER_BITRATE_MODE
+  rpc SetBitRateMode (CardInt32Request) returns (google.protobuf.Empty);
+
+  // DiSEqC motor
+  rpc DiSEqCReset (CardRequest) returns (google.protobuf.Empty);
+  rpc DiSEqCStopMotor (CardRequest) returns (google.protobuf.Empty);
+  rpc DiSEqCSetEastLimit (CardRequest) returns (google.protobuf.Empty);
+  rpc DiSEqCSetWestLimit (CardRequest) returns (google.protobuf.Empty);
+  rpc DiSEqCForceLimit (CardBoolRequest) returns (google.protobuf.Empty);
+  rpc DiSEqCDriveMotor (DiSEqCDriveMotorRequest) returns (google.protobuf.Empty);
+  rpc DiSEqCStorePosition (CardByteRequest) returns (google.protobuf.Empty);
+  rpc DiSEqCGotoReferencePosition (CardRequest) returns (google.protobuf.Empty);
+  rpc DiSEqCGotoPosition (CardByteRequest) returns (google.protobuf.Empty);
+  rpc DiSEqCGetPosition (CardRequest) returns (DiSEqCPositionReply);
+
+  // CI menu
+  rpc CiMenuSupported (CardRequest) returns (google.protobuf.BoolValue);
+  rpc EnterCiMenu (CardRequest) returns (google.protobuf.BoolValue);
+  rpc SelectMenu (CardByteRequest) returns (google.protobuf.BoolValue);
+  rpc CloseMenu (CardRequest) returns (google.protobuf.BoolValue);
+  rpc SendMenuAnswer (SendMenuAnswerRequest) returns (google.protobuf.BoolValue);
+  rpc SetCiMenuHandler (CardRequest) returns (google.protobuf.BoolValue);
+  // Replaces the remoted IController.OnCiMenu event: the server pushes every CI menu update.
+  rpc SubscribeCiMenu (google.protobuf.Empty) returns (stream CiMenu);
+
+  // Recordings / schedules
+  rpc GetRecordingThumbnail (google.protobuf.StringValue) returns (NullableBytesReply);
+  rpc GetRecordingUrl (IdRequest) returns (NullableStringReply);
+  rpc GetRecordingChapters (IdRequest) returns (NullableStringReply);
+  rpc DeleteRecording (IdRequest) returns (google.protobuf.BoolValue);
+  rpc IsRecordingValid (IdRequest) returns (google.protobuf.BoolValue);
+  rpc DeleteInvalidRecordings (google.protobuf.Empty) returns (google.protobuf.BoolValue);
+  rpc DeleteWatchedRecordings (google.protobuf.StringValue) returns (google.protobuf.BoolValue);
+  rpc GetUrlForFile (google.protobuf.StringValue) returns (NullableStringReply);
+  rpc IsRecordingSchedule (IdRequest) returns (VirtualCardBoolReply);
+  rpc IsRecordingChannel (IdRequest) returns (VirtualCardBoolReply);
+  rpc IsAnyCardRecording (google.protobuf.Empty) returns (google.protobuf.BoolValue);
+  rpc IsAnyCardRecordingOrTimeshifting (UserRequest) returns (IsAnyCardRecordingOrTimeshiftingReply);
+  rpc IsAnyCardIdle (google.protobuf.Empty) returns (google.protobuf.BoolValue);
+  rpc StopRecordingSchedule (IdRequest) returns (google.protobuf.Empty);
+  rpc CopyTimeShiftFile (CopyTimeShiftFileRequest) returns (google.protobuf.Empty);
+
+  // Channel states
+  rpc GetAllChannelStatesCached (UserRequest) returns (ChannelStateMap);
+  rpc GetAllChannelStatesForGroup (ChannelStatesForGroupRequest) returns (ChannelStateMap);
+  rpc GetChannelState (ChannelStateRequest) returns (ChannelStateReply);
+  rpc GetAllRecordingChannels (google.protobuf.Empty) returns (AllRecordingChannelsReply);
+  rpc GetAllTimeshiftingAndRecordingChannels (google.protobuf.Empty) returns (ChannelStateMap);
+
+  // User / timeshifting / recording
+  rpc GetStreamingUrl (UserRequest) returns (NullableStringReply);
+  rpc RecordingFileName (UserRequest) returns (UserStringReply);
+  rpc CurrentChannel (UserRequest) returns (UserChannelReply);
+  rpc CurrentDbChannel (UserRequest) returns (UserInt32Reply);
+  rpc CurrentChannelName (UserRequest) returns (UserStringReply);
+  rpc IsScrambled (UserRequest) returns (UserBoolReply);
+  rpc TimeShiftFileName (UserRequest) returns (UserStringReply);
+  rpc TimeShiftGetCurrentFilePosition (TimeShiftPositionRequest) returns (TimeShiftPositionReply);
+  rpc IsTimeShifting (UserRequest) returns (UserBoolReply);
+  rpc IsUserRecording (UserRequest) returns (UserBoolReply);
+  rpc TimeShiftStarted (UserRequest) returns (google.protobuf.Int64Value);       // ticks
+  rpc RecordingStarted (UserRequest) returns (google.protobuf.Int64Value);       // ticks
+  rpc AvailableAudioStreams (UserRequest) returns (AudioStreamList);
+  rpc GetCurrentAudioStream (UserRequest) returns (AudioStreamReply);
+  rpc SetCurrentAudioStream (SetAudioStreamRequest) returns (google.protobuf.Empty);
+  rpc GetCurrentVideoStream (UserRequest) returns (VideoStreamReply);
+  rpc StartTimeShiftingToFile (UserFileRequest) returns (TvResultReply);
+  rpc StopCard (UserRequest) returns (google.protobuf.Empty);
+  rpc PauseCard (UserRequest) returns (google.protobuf.Empty);
+  rpc TimeShiftingWouldUseCard (UserInt32Request) returns (UserInt32Reply);
+  rpc StartTimeShiftingChannel (StartTimeShiftingChannelRequest) returns (TvResultReply);
+  rpc StartTimeShiftingChannelForce (StartTimeShiftingChannelRequest) returns (TvResultReply);
+  rpc StartTimeShiftingChannelCardChanged (StartTimeShiftingChannelRequest) returns (TvResultReply);
+  rpc StopTimeShifting (UserRequest) returns (UserBoolReply);
+  rpc StopTimeShiftingWithReason (StopTimeShiftingRequest) returns (UserBoolReply);
+  rpc GetTvStoppedReason (UserRequest) returns (TvStoppedReasonReply);
+  rpc StartRecording (UserFileRequest) returns (TvResultReply);
+  rpc StopRecording (UserRequest) returns (UserBoolReply);
+  rpc ScanChannel (TuneRequest) returns (TvResultReply);
+  rpc Tune (TuneRequest) returns (TvResultReply);
+  rpc HeartBeat (UserRequest) returns (google.protobuf.Empty);
+  rpc GetStreamQualityCounters (UserRequest) returns (StreamQualityCountersReply);
+
+  // Teletext
+  rpc IsGrabbingTeletext (UserRequest) returns (google.protobuf.BoolValue);
+  rpc TeletextRotation (UserInt32Request) returns (google.protobuf.Int64Value);  // TimeSpan ticks
+  rpc HasTeletext (UserRequest) returns (google.protobuf.BoolValue);
+  rpc GrabTeletext (UserBoolRequest) returns (google.protobuf.Empty);
+  rpc GetTeletextPage (TeletextPageRequest) returns (NullableBytesReply);
+  rpc SubPageCount (UserInt32Request) returns (google.protobuf.Int32Value);
+  rpc GetTeletextRedPageNumber (UserRequest) returns (google.protobuf.Int32Value);
+  rpc GetTeletextGreenPageNumber (UserRequest) returns (google.protobuf.Int32Value);
+  rpc GetTeletextYellowPageNumber (UserRequest) returns (google.protobuf.Int32Value);
+  rpc GetTeletextBluePageNumber (UserRequest) returns (google.protobuf.Int32Value);
+}

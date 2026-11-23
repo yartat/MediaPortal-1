@@ -70,18 +70,8 @@ namespace TvEngine.PowerScheduler.Interfaces
     /// </summary>
     void UserActivityDetected(DateTime when);
 
-    /// <summary>
-    /// Register remote handlers. If an empty string or null is passed, no handler is registered for
-    /// that type. It returns a tag used to unregister the later. The returned tag is always not 0.
-    /// </summary>
-    /// <param name="standbyHandlerURI"></param>
-    /// <param name="wakeupHandlerURI"></param>
-    int RegisterRemote(String standbyHandlerURI, String wakeupHandlerURI);
-
-    /// <summary>
-    /// Unregister remote handlers.
-    /// </summary>
-    void UnregisterRemote(int tag);
+    // Client standby/wakeup handlers are no longer registered by remoting URI:
+    // see RemotePowerControl.StartHandlerSession (gRPC HandlerSession).
 
     /// <summary>
     /// Indicates whether or not we're connected to the PowerScheduler power control interfaces

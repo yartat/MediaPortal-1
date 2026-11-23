@@ -106,9 +106,8 @@
     <Reference Include="System.Deployment" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Management" />
-    <Reference Include="System.Runtime.Remoting, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\Program Files\Reference Assemblies\Microsoft\WinFX\v3.0\System.Runtime.Remoting.dll</HintPath>
+    <Reference Include="Grpc.Core.Api">
+      <HintPath>..\..\..\Packages\Grpc.Core.Api.2.46.6\lib\net45\Grpc.Core.Api.dll</HintPath>
     </Reference>
     <Reference Include="System.ServiceProcess" />
     <Reference Include="System.Web" />
@@ -549,6 +548,10 @@
     <ProjectReference Include="..\SetupControls\SetupControls.csproj">
       <Project>{A2792D3C-04C1-4A92-9383-A33D59C54D8D}</Project>
       <Name>SetupControls</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\..\Common-MP-TVE3\RemoteApi\RemoteApi.csproj">
+      <Project>{B6B7D3C2-8E4A-4C5B-9F1D-2A7E5C3B9D41}</Project>
+      <Name>RemoteApi</Name>
     </ProjectReference>
     <ProjectReference Include="..\TvControl\TvControl.csproj">
       <Project>{0DB878C6-1B68-4DC5-B6EF-564B7C08486F}</Project>

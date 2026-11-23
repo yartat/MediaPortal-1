@@ -97,12 +97,14 @@
       <Link>SolutionInfo.cs</Link>
     </Compile>
     <Compile Include="EPGWakeupConfig.cs" />
+    <Compile Include="GrpcPowerController.cs" />
     <Compile Include="Interfaces\IEpgHandler.cs" />
     <Compile Include="Interfaces\IPowerController.cs" />
     <Compile Include="Interfaces\IPowerScheduler.cs" />
     <Compile Include="Interfaces\IPowerSettings.cs" />
     <Compile Include="Interfaces\IStandbyHandler.cs" />
     <Compile Include="Interfaces\IWakeupHandler.cs" />
+    <Compile Include="PowerControlProto.cs" />
     <Compile Include="PowerManager.cs" />
     <Compile Include="PowerSchedulerEventArgs.cs" />
     <Compile Include="PowerSettings.cs" />
@@ -117,5 +119,29 @@
     <Reference Include="System.Core" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
+    <Reference Include="netstandard" />
+    <Reference Include="Google.Protobuf">
+      <HintPath>..\..\Packages\Google.Protobuf.3.36.2\lib\netstandard2.0\Google.Protobuf.dll</HintPath>
+    </Reference>
+    <Reference Include="Grpc.Core">
+      <HintPath>..\..\Packages\Grpc.Core.2.46.6\lib\net45\Grpc.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Grpc.Core.Api">
+      <HintPath>..\..\Packages\Grpc.Core.Api.2.46.6\lib\net45\Grpc.Core.Api.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Memory">
+      <HintPath>..\..\Packages\System.Memory.4.6.3\lib\net462\System.Memory.dll</HintPath>
+    </Reference>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+    <ProtoFile Include="Grpc\powercontrol.proto" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\RemoteApi\RemoteApi.csproj">
+      <Project>{B6B7D3C2-8E4A-4C5B-9F1D-2A7E5C3B9D41}</Project>
+      <Name>RemoteApi</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="..\RemoteApi\Grpc.targets" />
 </Project>

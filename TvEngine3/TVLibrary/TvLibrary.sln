@@ -114,6 +114,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "WatchDogService", "WatchDog
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WatchDogService.Interface", "..\..\Common-MP-TVE3\WatchDogService.Interface\WatchDogService.Interface.csproj", "{837CE7EA-60D4-4217-8D38-A8B5E6E1DB22}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TvControlGrpcTests", "UnitTests\TvControlGrpcTests\TvControlGrpcTests.csproj", "{70962931-FFB0-4A0A-8825-55238DF7E77F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RemoteApi", "..\..\Common-MP-TVE3\RemoteApi\RemoteApi.csproj", "{B6B7D3C2-8E4A-4C5B-9F1D-2A7E5C3B9D41}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WatchDogService", "WatchDogService\WatchDogService.csproj", "{97ABF4ED-7BE0-4697-9040-24803871793E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TvMovieDbReader", "Plugins\TvMovie\TvMovieDbReader\TvMovieDbReader.csproj", "{808346F5-45CF-4074-8FF1-4F6D4534B94A}"
@@ -330,6 +334,20 @@ Global
 		{837CE7EA-60D4-4217-8D38-A8B5E6E1DB22}.Release|x64.Build.0 = Release|x64
 		{837CE7EA-60D4-4217-8D38-A8B5E6E1DB22}.Release|x86.ActiveCfg = Release|Any CPU
 		{837CE7EA-60D4-4217-8D38-A8B5E6E1DB22}.Release|x86.Build.0 = Release|Any CPU
+		{70962931-FFB0-4A0A-8825-55238DF7E77F}.Debug|x64.ActiveCfg = Debug|x86
+		{70962931-FFB0-4A0A-8825-55238DF7E77F}.Debug|x86.ActiveCfg = Debug|x86
+		{70962931-FFB0-4A0A-8825-55238DF7E77F}.Debug|x86.Build.0 = Debug|x86
+		{70962931-FFB0-4A0A-8825-55238DF7E77F}.Release|x64.ActiveCfg = Release|x86
+		{70962931-FFB0-4A0A-8825-55238DF7E77F}.Release|x86.ActiveCfg = Release|x86
+		{70962931-FFB0-4A0A-8825-55238DF7E77F}.Release|x86.Build.0 = Release|x86
+		{B6B7D3C2-8E4A-4C5B-9F1D-2A7E5C3B9D41}.Debug|x64.ActiveCfg = Debug|x64
+		{B6B7D3C2-8E4A-4C5B-9F1D-2A7E5C3B9D41}.Debug|x64.Build.0 = Debug|x64
+		{B6B7D3C2-8E4A-4C5B-9F1D-2A7E5C3B9D41}.Debug|x86.ActiveCfg = Debug|x86
+		{B6B7D3C2-8E4A-4C5B-9F1D-2A7E5C3B9D41}.Debug|x86.Build.0 = Debug|x86
+		{B6B7D3C2-8E4A-4C5B-9F1D-2A7E5C3B9D41}.Release|x64.ActiveCfg = Release|x64
+		{B6B7D3C2-8E4A-4C5B-9F1D-2A7E5C3B9D41}.Release|x64.Build.0 = Release|x64
+		{B6B7D3C2-8E4A-4C5B-9F1D-2A7E5C3B9D41}.Release|x86.ActiveCfg = Release|Any CPU
+		{B6B7D3C2-8E4A-4C5B-9F1D-2A7E5C3B9D41}.Release|x86.Build.0 = Release|Any CPU
 		{97ABF4ED-7BE0-4697-9040-24803871793E}.Debug|x64.ActiveCfg = Debug|x64
 		{97ABF4ED-7BE0-4697-9040-24803871793E}.Debug|x64.Build.0 = Debug|x64
 		{97ABF4ED-7BE0-4697-9040-24803871793E}.Debug|x86.ActiveCfg = Debug|x86

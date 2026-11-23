@@ -81,6 +81,46 @@ namespace MediaPortal.Configuration
     }
 
     /// <summary>
+    /// Sets the connection key for the TV server RemoteControl (calls TvControl.TvServer.SetConnectionKey()).
+    /// </summary>
+    public static string ConnectionKey
+    {
+      set
+      {
+        try
+        {
+          Assembly assem = Assembly.LoadFrom(Config.GetFolder(Config.Dir.Base) + "\\TvControl.dll");
+          if (assem != null)
+          {
+            Type[] types = assem.GetExportedTypes();
+            foreach (Type exportedType in types)
+            {
+              try
+              {
+                if (exportedType.Name == "TvServer")
+                {
+                  Object exportedObject = Activator.CreateInstance(exportedType);
+                  MethodInfo methodInfo = exportedType.GetMethod("SetConnectionKey",
+                                                                  BindingFlags.Public | BindingFlags.Instance);
+                  methodInfo.Invoke(exportedObject, new object[] { value });
+                  break;
+                }
+              }
+              catch (Exception ex)
+              {
+                Log.Error("SetConnectionKey: Failed to set TV server connection key {0}", ex.ToString());
+              }
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          Log.Error("SetConnectionKey: Exception loading TvControl assembly - {0}", ex);
+        }
+      }
+    }
+
+    /// <summary>
     /// Retrieve a list of MediaPortal genres from the TV server (calls TvControl.TvServer.GetMpGenres()).
     /// </summary>
     /// <returns>List of MediaPortal genre objects</returns>

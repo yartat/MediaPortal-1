@@ -19,24 +19,19 @@
 #endregion
 
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Diagnostics;
-using System.Linq;
 using System.ServiceProcess;
-using System.Text;
-using System.Runtime.Remoting;
-using System.Runtime.Remoting.Channels;
-using System.Runtime.Remoting.Channels.Http;
-
+using Grpc.Core;
+using MediaPortal.RemoteApi;
+using WatchDogService.Interface;
+using WatchDogService.Interface.Proto;
 
 namespace WatchDogService
 {
   public partial class WatchDogService : ServiceBase
   {
     EventLog _eventLog = new EventLog();
-    HttpChannel _httpChannel;
+    Server _server;
 
     public WatchDogService()
     {
@@ -48,17 +43,11 @@ namespace WatchDogService
     {
       try
       {
-        _httpChannel = new HttpChannel(9997);
-        ChannelServices.RegisterChannel(_httpChannel, false);
-      }
-      catch (Exception ex)
-      {
-        _eventLog.WriteEntry("WatchDogService exception" + ex, EventLogEntryType.Error);
-      }
-
-      try
-      {
-        RemotingConfiguration.RegisterWellKnownServiceType(typeof(WatchDogServer), "WatchDogServer", WellKnownObjectMode.SingleCall);
+        // TLS + API key, same key material as the TV server
+        _server = SecureGrpcServer.Create(WatchDogEndpoint.Port, GrpcSecurity.LoadOrCreateServerMaterial(),
+                                          message => _eventLog.WriteEntry(message, EventLogEntryType.Warning),
+                                          WatchDog.BindService(new WatchDogGrpcService()));
+        _server.Start();
       }
       catch (Exception ex)
       {
@@ -70,10 +59,12 @@ namespace WatchDogService
     {
       try
       {
-        ChannelServices.UnregisterChannel(_httpChannel);
+        if (_server != null)
+          _server.ShutdownAsync().Wait(5000);
       }
       catch (Exception ex)
       {
+        _eventLog.WriteEntry("WatchDogService exception" + ex, EventLogEntryType.Error);
       }
     }
 

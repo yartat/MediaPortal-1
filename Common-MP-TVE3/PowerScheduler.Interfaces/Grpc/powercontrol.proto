@@ -1,0 +1,89 @@
+// PowerScheduler power control API (replaces the former .NET Remoting/SOAP endpoint on port 31457 and the
+// client callback endpoint on port 31458).
+// Transport: gRPC over TLS, every call must carry "authorization: Bearer <api key>" (same key as TvControl).
+// Date/time values are .NET DateTime ticks in local time.
+
+syntax = "proto3";
+
+package mediaportal.powercontrol.v1;
+
+option csharp_namespace = "TvEngine.PowerScheduler.Interfaces.Proto";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
+
+message SuspendSystemRequest {
+  string source = 1;
+  optional int32 how = 2;                  // RestartOptions; unset = PowerScheduler's configured mode
+  bool force = 3;
+}
+
+message SetStandbyAllowedRequest {
+  bool standby_allowed = 1;
+  string handler_name = 2;
+}
+
+message SetNextWakeupTimeRequest {
+  int64 next_wakeup_time_ticks = 1;
+  string handler_name = 2;
+}
+
+message CurrentStateReply {
+  bool unattended = 1;
+  bool disallow_shutdown = 2;
+  string disallow_shutdown_handler = 3;
+  int64 next_wakeup_time_ticks = 4;
+  string next_wakeup_handler = 5;
+}
+
+message PowerSettings {
+  bool shutdown_enabled = 1;
+  bool wakeup_enabled = 2;
+  bool force_shutdown = 3;
+  bool extensive_logging = 4;
+  int32 idle_timeout = 5;
+  int32 pre_wakeup_time = 6;
+  int32 pre_no_shutdown_time = 7;
+  int32 check_interval = 8;
+  int32 shutdown_mode = 9;                 // ShutdownMode
+  int32 allowed_sleep_start_time = 10;
+  int32 allowed_sleep_stop_time = 11;
+  int32 allowed_sleep_start_time_on_weekend = 12;
+  int32 allowed_sleep_stop_time_on_weekend = 13;
+  bool reinitialize_controller = 14;
+}
+
+// Questions the server asks the client's standby/wakeup handlers over the handler session.
+enum HandlerQueryKind {
+  HANDLER_QUERY_DISALLOW_SHUTDOWN = 0;
+  HANDLER_QUERY_USER_SHUTDOWN_NOW = 1;
+  HANDLER_QUERY_STANDBY_HANDLER_NAME = 2;
+  HANDLER_QUERY_NEXT_WAKEUP_TIME = 3;
+  HANDLER_QUERY_WAKEUP_HANDLER_NAME = 4;
+}
+
+message HandlerQuery {
+  int64 id = 1;
+  HandlerQueryKind kind = 2;
+  int64 earliest_wakeup_time_ticks = 3;    // HANDLER_QUERY_NEXT_WAKEUP_TIME only
+}
+
+message HandlerAnswer {
+  int64 id = 1;                            // id of the answered query
+  bool disallow_shutdown = 2;
+  string handler_name = 3;
+  int64 next_wakeup_time_ticks = 4;
+}
+
+service PowerControl {
+  rpc SuspendSystem (SuspendSystemRequest) returns (google.protobuf.Empty);
+  rpc SetStandbyAllowed (SetStandbyAllowedRequest) returns (google.protobuf.Empty);
+  rpc SetNextWakeupTime (SetNextWakeupTimeRequest) returns (google.protobuf.Empty);
+  rpc UserActivityDetected (google.protobuf.Int64Value) returns (google.protobuf.Empty);
+  rpc IsConnected (google.protobuf.Empty) returns (google.protobuf.BoolValue);
+  rpc GetCurrentState (google.protobuf.BoolValue) returns (CurrentStateReply);   // value = refresh
+  rpc GetPowerSettings (google.protobuf.Empty) returns (PowerSettings);
+  // Replaces RegisterRemote(): while the client keeps this call open its PowerScheduler acts as a standby and
+  // wakeup handler of the server. The server sends queries, the client answers each one (matching id).
+  rpc HandlerSession (stream HandlerAnswer) returns (stream HandlerQuery);
+}

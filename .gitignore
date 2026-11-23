@@ -28,3 +28,4 @@ graphify-out/
 .codegraph/
 CLAUDE.md
 DirectShowFilters/build/
+.remember/

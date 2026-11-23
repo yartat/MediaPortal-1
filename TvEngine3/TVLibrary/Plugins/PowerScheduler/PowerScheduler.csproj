@@ -108,9 +108,8 @@
     <Compile Include="Handlers\EpgGrabbingStandbyWakeupHandler.cs" />
     <Compile Include="Handlers\PowerControllerStandbyHandler.cs" />
     <Compile Include="Handlers\PowerControllerWakeupHandler.cs" />
-    <Compile Include="Handlers\LocalClientStandbyHandler.cs" />
-    <Compile Include="Handlers\LocalClientWakeupHandler.cs" />
     <Compile Include="Handlers\ScheduledRecordingsWakeupHandler.cs" />
+    <Compile Include="PowerControlGrpcService.cs" />
     <Compile Include="PowerScheduler.cs" />
     <Compile Include="PowerSchedulerFactory.cs" />
     <Compile Include="PowerSchedulerPlugin.cs" />
@@ -157,8 +156,21 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Management" />
-    <Reference Include="System.Runtime.Remoting" />
     <Reference Include="System.ServiceProcess" />
+    <Reference Include="netstandard" />
+    <!-- Provided by the TV server installation directory -->
+    <Reference Include="Google.Protobuf">
+      <HintPath>..\..\..\..\Packages\Google.Protobuf.3.36.2\lib\netstandard2.0\Google.Protobuf.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Grpc.Core">
+      <HintPath>..\..\..\..\Packages\Grpc.Core.2.46.6\lib\net45\Grpc.Core.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Grpc.Core.Api">
+      <HintPath>..\..\..\..\Packages\Grpc.Core.Api.2.46.6\lib\net45\Grpc.Core.Api.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
   </ItemGroup>
@@ -214,6 +226,11 @@
     <ProjectReference Include="..\..\..\..\Common-MP-TVE3\PowerScheduler.Interfaces\PowerScheduler.Interfaces.csproj">
       <Project>{7701AA79-18D4-4A18-BB52-16774FB7943D}</Project>
       <Name>PowerScheduler.Interfaces</Name>
+      <Private>False</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\..\..\..\Common-MP-TVE3\RemoteApi\RemoteApi.csproj">
+      <Project>{B6B7D3C2-8E4A-4C5B-9F1D-2A7E5C3B9D41}</Project>
+      <Name>RemoteApi</Name>
       <Private>False</Private>
     </ProjectReference>
   </ItemGroup>

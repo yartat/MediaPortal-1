@@ -1221,6 +1221,8 @@ namespace TvPlugin
 
       using (Settings xmlreader = new MPSettings())
       {
+        // Key that authenticates MediaPortal at the TV server (copied from TV-Server Configuration)
+        RemoteControl.ConnectionKey = xmlreader.GetValueAsString("tvservice", "connectionkey", "");
         hostName = xmlreader.GetValueAsString("tvservice", "hostname", "");
         if (string.IsNullOrEmpty(hostName) || hostName == "localhost")
         {

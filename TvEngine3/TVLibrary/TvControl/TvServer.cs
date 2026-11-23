@@ -698,6 +698,22 @@ namespace TvControl
       }
     }
 
+    /// <summary>
+    /// Sets the connection key of the TV server directly.  Used in the MP configuration tool.
+    /// </summary>
+    /// <param name="connectionKey">Connection key as shown in TV-Server Configuration</param>
+    public void SetConnectionKey(string connectionKey)
+    {
+      try
+      {
+        RemoteControl.ConnectionKey = connectionKey;
+      }
+      catch (Exception e)
+      {
+        HandleFailure("SetConnectionKey", e);
+      }
+    }
+
     #endregion
   }
 }

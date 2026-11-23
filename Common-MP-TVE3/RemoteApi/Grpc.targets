@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Contract-first gRPC code generation for projects using packages.config.
+  Usage (after the Microsoft.CSharp.targets import):
+    <ItemGroup><ProtoFile Include="Grpc\my.proto" /></ItemGroup>
+    <Import Project="..\..\Common-MP-TVE3\RemoteApi\Grpc.targets" />
+  Messages and client/server stubs are generated into obj\...\Grpc and compiled with the project.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <GrpcToolsDir>$(MSBuildThisFileDirectory)..\..\Packages\Grpc.Tools.2.46.6</GrpcToolsDir>
+    <GrpcGeneratedDir>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)Grpc</GrpcGeneratedDir>
+  </PropertyGroup>
+  <Target Name="GenerateGrpcCode" BeforeTargets="CoreCompile" Inputs="@(ProtoFile);$(MSBuildThisFileFullPath)"
+          Outputs="$(GrpcGeneratedDir)\grpc.stamp">
+    <Error Condition="!Exists('$(GrpcToolsDir)\tools\windows_x86\protoc.exe')"
+           Text="Grpc.Tools package is missing - run Build\RestorePackages.bat" />
+    <RemoveDir Directories="$(GrpcGeneratedDir)" />
+    <MakeDir Directories="$(GrpcGeneratedDir)" />
+    <Exec Command="&quot;$(GrpcToolsDir)\tools\windows_x86\protoc.exe&quot; -I&quot;%(ProtoFile.RootDir)%(ProtoFile.Directory).&quot; -I&quot;$(GrpcToolsDir)\build\native\include&quot; --csharp_out=&quot;$(GrpcGeneratedDir)&quot; --grpc_out=&quot;$(GrpcGeneratedDir)&quot; --plugin=protoc-gen-grpc=&quot;$(GrpcToolsDir)\tools\windows_x86\grpc_csharp_plugin.exe&quot; &quot;%(ProtoFile.FullPath)&quot;" />
+    <Touch Files="$(GrpcGeneratedDir)\grpc.stamp" AlwaysCreate="true" />
+  </Target>
+  <Target Name="IncludeGrpcCode" AfterTargets="GenerateGrpcCode" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <Compile Include="$(GrpcGeneratedDir)\*.cs" />
+    </ItemGroup>
+  </Target>
+</Project>

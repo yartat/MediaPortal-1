@@ -135,12 +135,17 @@ namespace SetupTv
         try
         {
           RemoteControl.Clear();
-          int cards = RemoteControl.Instance.Cards;
-          return true;
+          IController controller = RemoteControl.Instance;
+          if (controller != null)
+          {
+            int cards = controller.Cards;
+            return true;
+          }
+          Log.Info("ServiceHelper: Waiting for tvserver to initialize. (connection not available)");
         }
-        catch (System.Runtime.Remoting.RemotingException)
+        catch (Grpc.Core.RpcException ex) when (ex.StatusCode == Grpc.Core.StatusCode.Unavailable)
         {
-          Log.Info("ServiceHelper: Waiting for tvserver to initialize. (remoting not initialized)");
+          Log.Info("ServiceHelper: Waiting for tvserver to initialize. (gRPC endpoint not available)");
         }
         catch (System.Net.Sockets.SocketException)
         {
