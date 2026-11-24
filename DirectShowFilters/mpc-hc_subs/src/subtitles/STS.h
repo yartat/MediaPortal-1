@@ -24,6 +24,7 @@
 #include <array>
 #include "TextFile.h"
 #include "SubtitleHelpers.h"
+#include "EmbeddedFont.h"
 #include "../../include/mpc-hc_config.h"
 #if USE_LIBASS
 #include "SSASub.h"
@@ -167,6 +168,7 @@ public:
     int m_collisions;
     bool m_fScaledBAS;
     tstring m_sYCbCrMatrix;
+    EmbeddedFontHandles m_embeddedFonts; // fonts of [Fonts] of an SSA/ASS file, removed in Empty()
 
     bool m_bUsingPlayerDefaultStyle;
 

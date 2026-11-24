@@ -9,6 +9,32 @@
 const size_t EMBEDDED_FONT_MAX_TEXT = 16 * 1024 * 1024;
 const int EMBEDDED_FONT_MAX_COUNT = 64;
 
+// The handles of AddFontMemResourceEx of one subtitle. The fonts stay private to the process; this removes them when the subtitle is
+// emptied or destroyed (a player that opens many files would otherwise keep every font of every file until it exits).
+// A copy of the subtitle owns nothing: two owners would remove a handle twice.
+class EmbeddedFontHandles
+{
+public:
+  EmbeddedFontHandles() {}
+  EmbeddedFontHandles(const EmbeddedFontHandles&) {}
+  EmbeddedFontHandles& operator=(const EmbeddedFontHandles&) { return *this; }
+  ~EmbeddedFontHandles() { Release(); }
+
+  void Add(HANDLE font) { if (font != NULL) m_handles.push_back(font); }
+  size_t Count() const { return m_handles.size(); }
+  void Release()
+  {
+    for (HANDLE font : m_handles)
+    {
+      RemoveFontMemResourceEx(font);
+    }
+    m_handles.clear();
+  }
+
+private:
+  std::vector<HANDLE> m_handles;
+};
+
 // false: nothing to decode, a length that no UUE text has (4n + 1), or more than EMBEDDED_FONT_MAX_TEXT characters
 inline bool DecodeEmbeddedFont(const std::wstring& text, std::vector<BYTE>& out)
 {

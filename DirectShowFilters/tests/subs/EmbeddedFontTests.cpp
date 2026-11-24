@@ -72,3 +72,69 @@ TEST(EmbeddedFont, CharactersOutsideTheAlphabetDoNotCrash)
   DecodeEmbeddedFont(text, out);
   EXPECT_EQ(out.size(), text.size() / 4 * 3 + ((text.size() & 3) ? (text.size() & 3) - 1 : 0));
 }
+
+namespace
+{
+  // A real font: private fonts are accepted only when Windows can parse them. Windows always has Arial.
+  bool ReadSystemFont(std::vector<BYTE>& out)
+  {
+    wchar_t dir[MAX_PATH];
+    if (GetWindowsDirectoryW(dir, MAX_PATH) == 0)
+      return false;
+    HANDLE f = CreateFileW((std::wstring(dir) + L"\\Fonts\\arial.ttf").c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+    if (f == INVALID_HANDLE_VALUE)
+      return false;
+    out.resize(GetFileSize(f, nullptr));
+    DWORD got = 0;
+    const BOOL ok = ReadFile(f, out.data(), (DWORD)out.size(), &got, nullptr);
+    CloseHandle(f);
+    return ok && got == out.size() && !out.empty();
+  }
+
+  // The font is installed again for each call: the result is a handle the caller must remove
+  HANDLE InstallPrivately(const std::vector<BYTE>& font)
+  {
+    DWORD count = 0;
+    return AddFontMemResourceEx(const_cast<BYTE*>(font.data()), (DWORD)font.size(), nullptr, &count);
+  }
+}
+
+// A font that stays installed after its subtitle is closed is kept until the process ends: a player that opens a file with a
+// font in it every evening for a month keeps all of them.
+TEST(EmbeddedFont, TheHandlesAreRemovedWhenTheHolderIsDestroyed)
+{
+  std::vector<BYTE> font;
+  if (!ReadSystemFont(font))
+    GTEST_SKIP() << "no arial.ttf";
+  HANDLE h = InstallPrivately(font);
+  ASSERT_NE(h, nullptr);
+  {
+    EmbeddedFontHandles holder;
+    holder.Add(h);
+    holder.Add(nullptr);                         // a refused font is not counted
+    EXPECT_EQ(holder.Count(), 1u);
+  }
+  EXPECT_FALSE(RemoveFontMemResourceEx(h));      // the holder has removed it: a handle that is gone cannot be removed again
+}
+
+TEST(EmbeddedFont, ACopyOwnsNoFont)
+{
+  std::vector<BYTE> font;
+  if (!ReadSystemFont(font))
+    GTEST_SKIP() << "no arial.ttf";
+  HANDLE h = InstallPrivately(font);
+  ASSERT_NE(h, nullptr);
+  EmbeddedFontHandles holder;
+  holder.Add(h);
+  {
+    EmbeddedFontHandles copy(holder);
+    EXPECT_EQ(copy.Count(), 0u);
+    EmbeddedFontHandles assigned;
+    assigned = holder;
+    EXPECT_EQ(assigned.Count(), 0u);
+  }
+  EXPECT_EQ(holder.Count(), 1u);
+  holder.Release();
+  EXPECT_EQ(holder.Count(), 0u);
+  EXPECT_FALSE(RemoveFontMemResourceEx(h));
+}

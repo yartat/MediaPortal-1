@@ -32,6 +32,7 @@ extern void LogDebug(const char *fmt, ...) ;
 
 CTsHeader::CTsHeader()
 {
+	Decode(NULL);
 }
 CTsHeader::CTsHeader(byte* tsPacket)
 {
@@ -60,6 +61,11 @@ bool CTsHeader::AdaptionFieldAndPayLoad()
 void CTsHeader::Decode(byte *data)
 {
 	m_packet=data;
+	// TS-01 (copy of DvbCoreUtils/TsHeader.cpp): no member stays uninitialised, whatever the packet looks like
+	SyncByte=0; TransportError=false; PayloadUnitStart=false; TransportPriority=false; Pid=0; TScrambling=0;
+	AdaptionControl=0; ContinuityCounter=0; AdaptionFieldLength=0; PayLoadStart=0; HasAdaptionField=false; HasPayload=false;
+	if (!data)
+		return;
   //47 40 d2 10
 	//															bits  byteNo		mask
 	//SyncByte											:	8			0				0xff  11111111
@@ -97,8 +103,12 @@ void CTsHeader::Decode(byte *data)
 	if (HasAdaptionField) 
 	{
 		AdaptionFieldLength=data[4];
-		PayLoadStart=5+AdaptionFieldLength;
+		// PayLoadStart is a BYTE: 5+255 would wrap to 4. Only set it when the payload starts in this packet.
+		if (5+AdaptionFieldLength < 188)
+			PayLoadStart=5+AdaptionFieldLength;
 	}
+	if (HasPayload && HasAdaptionField && 5+AdaptionFieldLength >= 188) // TS-01: the adaption field fills the packet
+		HasPayload=false;
 	if (PayloadUnitStart && !HasPayload)
 		PayloadUnitStart=false;
 	// Could result in wrong values 

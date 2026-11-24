@@ -488,6 +488,7 @@ void CEpgDecoder::DecodePremiereContentTransmissionDescriptor(byte* data, EPGEve
 	imapEPG it=m_mapEPG.find(key);
 	if (it==m_mapEPG.end())
 	{
+		if (m_mapEPG.size() >= 8192) return; // EP-02: the second way to a new channel, the same limit as in DecodeEPG
 		EPGChannel newChannel;
 		newChannel.original_network_id=nid;
 		newChannel.service_id=sid;

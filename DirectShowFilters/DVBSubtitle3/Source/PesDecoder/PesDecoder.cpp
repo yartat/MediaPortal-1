@@ -102,6 +102,11 @@ bool CPesDecoder::OnTsPacket( byte* tsPacket )
     return false;
   }
 
+  if ( !header.HasPayload )
+  {
+    return false;
+  }
+
   BOOL scrambled = ( header.TScrambling != 0 );
   if ( scrambled )
   {
@@ -122,6 +127,13 @@ bool CPesDecoder::OnTsPacket( byte* tsPacket )
   // if this header starts a new PES packet
   if (header.PayloadUnitStart) 
   {
+    // PES-01: the 9 byte PES header must lie inside the packet (it was read from pos+0..pos+8 unchecked)
+    if ( pos + 9 > 188 )
+    {
+      LogDebug( "pesdecoder pid:%x PES header does not fit into the packet", m_pid );
+      Reset();
+      return false;
+    }
     if ( tsPacket[pos+0] == 0 && tsPacket[pos+1] == 0 && tsPacket[pos+2] == 1 )
     {
       if ( m_iStreamId < 0 )
@@ -150,6 +162,12 @@ bool CPesDecoder::OnTsPacket( byte* tsPacket )
     }
 
     m_iPesHeaderLen = tsPacket[pos+8] + 9;
+    if ( pos + m_iPesHeaderLen > 188 )   // PES-01: up to 264 bytes were copied into m_pesHeader[256] from a 188 byte packet
+    {
+      LogDebug( "pesdecoder pid:%x PES header length %d does not fit into the packet", m_pid, m_iPesHeaderLen );
+      Reset();
+      return false;
+    }
     memcpy( m_pesHeader, &tsPacket[pos], m_iPesHeaderLen );
     pos += m_iPesHeaderLen;
     m_bStart = true;

@@ -1135,6 +1135,13 @@ void CDeMultiplexer::FillVideoVC1PESPacket(CTsHeader* header, std::unique_ptr<Pa
     m_loopLastSearch = 1;
     m_p->erase(m_p->begin() + (0), m_p->begin() + (0) + (start - m_p->data()));
   }
+
+  if (m_p && VideoPesBufferTooLarge(m_p->size())) // BD-03: no frame header in 4 MB, the data are not a video stream
+  {
+    LogDebug("demux: VC1 PES buffer over %d bytes without a frame header, data dropped", (int)VIDEO_PES_BUFFER_LIMIT);
+    m_p.reset();
+    m_loopLastSearch = 0;
+  }
 }
 
 void CDeMultiplexer::FillVideoH264(CTsHeader* header, byte* tsPacket)

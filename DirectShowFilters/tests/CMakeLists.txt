@@ -225,6 +225,9 @@ if(MP_MPC_SUBS_ENABLED)
     subs/DrawingOverlayTests.cpp
     subs/DrawingCoordinateTests.cpp
     subs/EmbeddedFontTests.cpp
+    subs/PesDecoderTests.cpp
+    ../DVBSubtitle3/Source/PesDecoder/PesDecoder.cpp
+    ../DVBSubtitle3/Source/PesDecoder/TsHeader.cpp
   )
   mp_target(mp_subs_tests
     FOLDER "Tests"

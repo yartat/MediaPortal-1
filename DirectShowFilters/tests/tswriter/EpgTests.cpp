@@ -156,6 +156,30 @@ TEST(EpgDecoder, NumberOfChannelsIsLimited)
   EXPECT_LE(decoder.GetEPGChannelCount(), 8192u);
 }
 
+// EP-02: the Premiere content transmission descriptor makes channels too: a section for each of 20 000 different services.
+TEST(EpgDecoder, NumberOfChannelsOfThePremierePathIsLimited)
+{
+  CEpgDecoder decoder;
+  decoder.GrabEPG();
+  for (unsigned i = 0; i < 20000; i++)
+  {
+    vector<byte> s(8 + 9 + 14, 0);
+    s[1] = 0xB0; s[2] = 28;
+    s[8 + 7] = 0x00; s[8 + 8] = 14;                  // the event: no id, no duration, 14 bytes of descriptors
+    byte* d = &s[8 + 9];
+    d[0] = 0xF2; d[1] = 12;                          // content transmission descriptor
+    d[2] = 0x00; d[3] = 0x01;                        // transport stream id
+    d[4] = static_cast<byte>(i >> 8); d[5] = static_cast<byte>(i);   // original network id: a channel of its own
+    d[6] = 0x04; d[7] = 0x01;                        // service id
+    d[8] = 0xE7; d[9] = 0x89;                        // date
+    d[10] = 3;                                       // one start time (3 bytes)
+    d[11] = 0x12; d[12] = 0x34; d[13] = 0x56;
+    decoder.DecodePremierePrivateEPG(s.data(), static_cast<int>(s.size()));
+  }
+  EXPECT_GT(decoder.GetEPGChannelCount(), 0u);
+  EXPECT_LE(decoder.GetEPGChannelCount(), 8192u);
+}
+
 // EP-02: 20 000 different events of one channel (a week of schedule is some thousands).
 TEST(EpgDecoder, NumberOfEventsOfAChannelIsLimited)
 {

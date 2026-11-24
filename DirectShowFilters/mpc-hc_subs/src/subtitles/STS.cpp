@@ -1633,7 +1633,7 @@ static double GetFloat(LPCWSTR& pszBuff, int& nLength, WCHAR sep = L',')
 
 // The font stays private to this process (AddFontMemResourceEx). It used to fall back to a file with a predictable name in %TEMP%
 // that was installed for the whole session and never deleted (SECURITY_AUDIT.md: CD-04); a font that the memory path refuses is skipped.
-static bool LoadFont(const tstring& font)
+static bool LoadFont(const tstring& font, EmbeddedFontHandles& handles)
 {
     std::vector<BYTE> data;
     if (!DecodeEmbeddedFont(font, data) || data.empty()) {
@@ -1641,10 +1641,12 @@ static bool LoadFont(const tstring& font)
     }
 
     DWORD cFonts = 0;
-    return AddFontMemResourceEx(data.data(), (DWORD)data.size(), nullptr, &cFonts) != nullptr;
+    HANDLE handle = AddFontMemResourceEx(data.data(), (DWORD)data.size(), nullptr, &cFonts);
+    handles.Add(handle);
+    return handle != nullptr;
 }
 
-static bool LoadUUEFont(CTextFile* file)
+static bool LoadUUEFont(CTextFile* file, EmbeddedFontHandles& handles)
 {
     tstring s, font;
     int fonts = 0;
@@ -1675,7 +1677,7 @@ static bool LoadUUEFont(CTextFile* file)
         }
         if (StringFind(s, _T("fontname:")) == 0) {
             if (fonts++ < EMBEDDED_FONT_MAX_COUNT) {
-                LoadFont(font);
+                LoadFont(font, handles);
             }
             font.clear();
             continue;
@@ -1687,7 +1689,7 @@ static bool LoadUUEFont(CTextFile* file)
     }
 
     if (!font.empty() && fonts < EMBEDDED_FONT_MAX_COUNT) {
-        LoadFont(font);
+        LoadFont(font, handles);
     }
 
     return true;
@@ -1934,7 +1936,7 @@ static bool OpenSubStationAlpha(CTextFile* file, CSimpleTextSubtitle& ret, int C
         } else if (entry == L"[events]") {
             fRet = true;
         } else if (entry == L"fontname") {
-            LoadUUEFont(file);
+            LoadUUEFont(file, ret.m_embeddedFonts);
         } else if (entry == L"ycbcr matrix") {
             if (nBuffLength) {
                 ret.m_sYCbCrMatrix = GetStrW(pszBuff, nBuffLength);
@@ -2094,7 +2096,7 @@ static bool OpenXombieSub(CTextFile* file, CSimpleTextSubtitle& ret, int CharSet
                 return false;
             }
         } else if (entry == L"fontname") {
-            LoadUUEFont(file);
+            LoadUUEFont(file, ret.m_embeddedFonts);
         }
     }
 
@@ -2367,6 +2369,7 @@ bool CSimpleTextSubtitle::CopyStyles(const CSTSStyleMap& styles, bool fAppend)
 
 void CSimpleTextSubtitle::Empty()
 {
+    m_embeddedFonts.Release();
     m_storageRes = MakeSize(0, 0);
     m_playRes = MakeSize(0, 0);
     m_layoutRes = MakeSize(0, 0);
