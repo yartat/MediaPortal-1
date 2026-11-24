@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include <streams.h>
 #include <chrono>
+#include <iostream>
 #include <thread>
 #include "FilterHost.h"
 #include "LocalSupport.h"
@@ -13,6 +14,15 @@ namespace
 {
   const GUID kBDReader = { 0x79a37017, 0x3178, 0x4859, { 0x80, 0x79, 0xec, 0xb9, 0xd5, 0x46, 0xfe, 0xb2 } };
   const GUID kIBDReader = { 0x79a37017, 0x3178, 0x4859, { 0x80, 0x79, 0xec, 0xb9, 0xd5, 0x46, 0xfe, 0xc2 } };
+
+  // The start of BLURAY_TITLE_INFO (libbluray.h): enough to find the longest title
+  struct TitleInfoHead
+  {
+    UINT32 idx;
+    UINT32 playlist;
+    UINT64 duration;      // 90 kHz
+    UINT32 clip_count;
+  };
 
   // The first slots of IBDReader (BDReader.h): the header needs the libbluray headers, the tests only call these.
   struct IBDReaderHead : IUnknown
@@ -24,6 +34,14 @@ namespace
     virtual HRESULT STDMETHODCALLTYPE GetAngle(UINT8*) = 0;
     virtual HRESULT STDMETHODCALLTYPE GetChapter(UINT32*) = 0;
     virtual HRESULT STDMETHODCALLTYPE GetTitleCount(UINT32*) = 0;
+    virtual TitleInfoHead* STDMETHODCALLTYPE GetTitleInfo(UINT32) = 0;
+    virtual HRESULT STDMETHODCALLTYPE GetCurrentClipStreamInfo(void*) = 0;
+    virtual HRESULT STDMETHODCALLTYPE FreeTitleInfo(TitleInfoHead*) = 0;
+    virtual void STDMETHODCALLTYPE OnGraphRebuild(int) = 0;
+    virtual void STDMETHODCALLTYPE ForceTitleBasedPlayback(bool, UINT32) = 0;
+    virtual void STDMETHODCALLTYPE SetD3DDevice(void*) = 0;
+    virtual void STDMETHODCALLTYPE SetBDPlayerSettings(void*) = 0;     // slot only: the real one takes a structure by value
+    virtual HRESULT STDMETHODCALLTYPE Start() = 0;
   };
 
   class BdReader : public testing::Test
@@ -44,6 +62,70 @@ namespace
     }
 
     static bool HasLibbluray() { return GetFileAttributesW((FilterModule::PathOf(L"bluray.dll")).c_str()) != INVALID_FILE_ATTRIBUTES; }
+
+    // A sink on every output pin of the loaded filter, run for a few seconds: libbluray reads, BDReader demultiplexes and the pins
+    // have to deliver samples, some of them with time stamps. The filter is taken out of the graph at the end.
+    void ConnectRunAndExpectSamples(IGraphBuilder* graph)
+    {
+      std::vector<CTestSinkFilter*> sinks;
+      Ptr<IEnumPins> pins;
+      ASSERT_EQ(filter->EnumPins(&pins), S_OK);
+      Ptr<IPin> pin;
+      while (pins->Next(1, &pin, nullptr) == S_OK)
+      {
+        PIN_DIRECTION dir;
+        pin->QueryDirection(&dir);
+        if (dir == PINDIR_OUTPUT)
+        {
+          HRESULT hr = S_OK;
+          auto* sink = new CTestSinkFilter(&hr);
+          sink->AddRef();
+          ASSERT_EQ(hr, S_OK);
+          ASSERT_TRUE(SUCCEEDED(graph->AddFilter(sink, L"Sink")));   // VFW_S_DUPLICATE_NAME for the second one is a success
+          if (graph->ConnectDirect(pin.Get(), sink->Pin(), nullptr) == S_OK)
+            sinks.push_back(sink);
+          else
+          {
+            graph->RemoveFilter(sink);
+            sink->Release();
+          }
+        }
+        pin.Reset();
+      }
+      ASSERT_FALSE(sinks.empty()) << "no output pin of BDReader accepted a connection";
+
+      Ptr<IMediaControl> mc;
+      ASSERT_EQ(graph->QueryInterface(__uuidof(IMediaControl), reinterpret_cast<void**>(&mc)), S_OK);
+      ASSERT_TRUE(SUCCEEDED(mc->Run()));
+
+      size_t bytes = 0, samples = 0;
+      const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(8);
+      while (std::chrono::steady_clock::now() < until && bytes == 0)
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        for (auto* s : sinks)
+        {
+          bytes += s->Pin()->Bytes();
+          samples += s->Pin()->Samples().size();
+        }
+      }
+      mc->Stop();
+
+      EXPECT_GT(samples, 0u);
+      EXPECT_GT(bytes, 0u);
+      size_t timed = 0;
+      for (auto* s : sinks)
+        for (const auto& r : s->Pin()->Samples())
+          timed += r.hasTime ? 1 : 0;
+      EXPECT_GT(timed, 0u) << "no sample carries a time stamp";
+
+      for (auto* s : sinks)
+      {
+        graph->RemoveFilter(s);
+        s->Release();
+      }
+      graph->RemoveFilter(filter.Get());
+    }
   };
 }
 
@@ -127,62 +209,48 @@ TEST_F(BdReader, PlaysTheSampleDisc)
   ASSERT_EQ(graph->AddFilter(filter.Get(), L"BDReader"), S_OK);
   ASSERT_TRUE(SUCCEEDED(file->Load(index.c_str(), nullptr)));
 
-  std::vector<CTestSinkFilter*> sinks;
-  Ptr<IEnumPins> pins;
-  ASSERT_EQ(filter->EnumPins(&pins), S_OK);
-  Ptr<IPin> pin;
-  while (pins->Next(1, &pin, nullptr) == S_OK)
+  ConnectRunAndExpectSamples(graph.Get());
+}
+
+// A disc with a BD-J menu cannot be played through its menu without BD+ (the Java application of the disc needs it), and a menu
+// is not what a player wants for a test. The way MediaPortal plays such a disc without the menu: BDReader is told to play one title
+// (ForceTitleBasedPlayback) and restarted (Start); the longest title is the main movie.
+TEST_F(BdReader, PlaysTheLongestTitleWithoutTheMenu)
+{
+  if (!HasLibbluray())
+    GTEST_SKIP() << "bluray.dll is not next to BDReader.ax (NuGet package MediaPortal.libbluray is missing)";
+  REQUIRE_SAMPLE(index, L"BD\\BDMV\\index.bdmv");
+
+  Ptr<IGraphBuilder> graph;
+  ASSERT_EQ(CreateGraph(&graph), S_OK);
+  ASSERT_EQ(graph->AddFilter(filter.Get(), L"BDReader"), S_OK);
+  ASSERT_TRUE(SUCCEEDED(file->Load(index.c_str(), nullptr)));
+
+  Ptr<IBDReaderHead> bd;
+  ASSERT_EQ(filter->QueryInterface(kIBDReader, reinterpret_cast<void**>(&bd)), S_OK);
+  UINT32 titles = 0;
+  ASSERT_EQ(bd->GetTitleCount(&titles), S_OK);
+  ASSERT_GT(titles, 0u);
+
+  UINT32 longest = 0;
+  UINT64 longestDuration = 0;
+  for (UINT32 i = 0; i < titles; i++)
   {
-    PIN_DIRECTION dir;
-    pin->QueryDirection(&dir);
-    if (dir == PINDIR_OUTPUT)
+    TitleInfoHead* info = bd->GetTitleInfo(i);
+    if (info == nullptr)
+      continue;
+    if (info->duration > longestDuration)
     {
-      HRESULT hr = S_OK;
-      auto* sink = new CTestSinkFilter(&hr);
-      sink->AddRef();
-      ASSERT_EQ(hr, S_OK);
-      ASSERT_TRUE(SUCCEEDED(graph->AddFilter(sink, L"Sink")));   // VFW_S_DUPLICATE_NAME for the second one is a success
-      if (graph->ConnectDirect(pin.Get(), sink->Pin(), nullptr) == S_OK)
-        sinks.push_back(sink);
-      else
-      {
-        graph->RemoveFilter(sink);
-        sink->Release();
-      }
+      longestDuration = info->duration;
+      longest = i;
     }
-    pin.Reset();
+    bd->FreeTitleInfo(info);
   }
-  ASSERT_FALSE(sinks.empty()) << "no output pin of BDReader accepted a connection";
+  ASSERT_GT(longestDuration, 0u) << "no title has a duration";
+  std::cout << "[ INFO ] " << titles << " titles, the longest is " << longest << ": " << longestDuration / 90000 / 60 << " min" << std::endl;
 
-  Ptr<IMediaControl> mc;
-  ASSERT_EQ(graph.As(mc), S_OK);
-  ASSERT_TRUE(SUCCEEDED(mc->Run()));
+  bd->ForceTitleBasedPlayback(true, longest);
+  ASSERT_TRUE(SUCCEEDED(bd->Start()));
 
-  size_t bytes = 0, samples = 0;
-  const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(8);
-  while (std::chrono::steady_clock::now() < until && bytes == 0)
-  {
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    for (auto* s : sinks)
-    {
-      bytes += s->Pin()->Bytes();
-      samples += s->Pin()->Samples().size();
-    }
-  }
-  mc->Stop();
-
-  EXPECT_GT(samples, 0u);
-  EXPECT_GT(bytes, 0u);
-  size_t timed = 0;
-  for (auto* s : sinks)
-    for (const auto& r : s->Pin()->Samples())
-      timed += r.hasTime ? 1 : 0;
-  EXPECT_GT(timed, 0u) << "no sample carries a time stamp";
-
-  for (auto* s : sinks)
-  {
-    graph->RemoveFilter(s);
-    s->Release();
-  }
-  graph->RemoveFilter(filter.Get());
+  ConnectRunAndExpectSamples(graph.Get());
 }

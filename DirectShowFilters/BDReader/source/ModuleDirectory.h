@@ -43,3 +43,39 @@ inline bool DirectoryOfModuleAt(const void* address, ModuleString& directory)
   }
   return ParentDirectory(path, directory);
 }
+
+// The BD-J library of libbluray in 'directory': libbluray-j2se-<version>.jar (libbluray 1.3 and later; the highest version when
+// there are several) or libbluray.jar (older layout). LIBBLURAY_CP must name this file: libbluray makes the name of the AWT jar
+// (libbluray-awt-j2se-<version>.jar, beside it) from the name of this one, so a name that is not there makes BD-J fail and a
+// disc with a BD-J menu cannot start a title. false: no jar, BD-J is not available.
+inline bool FindBdjJar(const ModuleString& directory, ModuleString& jar)
+{
+  jar.clear();
+  WIN32_FIND_DATA found;
+  HANDLE search = FindFirstFile((directory + _T("\\libbluray-j2se-*.jar")).c_str(), &found);
+  if (search != INVALID_HANDLE_VALUE)
+  {
+    ModuleString best;
+    do
+    {
+      if ((found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0 && _tcsicmp(found.cFileName, best.c_str()) > 0)
+      {
+        best = found.cFileName;
+      }
+    } while (FindNextFile(search, &found));
+    FindClose(search);
+    if (!best.empty())
+    {
+      jar = directory + _T("\\") + best;
+      return true;
+    }
+  }
+  const ModuleString old = directory + _T("\\libbluray.jar");
+  const DWORD attributes = GetFileAttributes(old.c_str());
+  if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
+  {
+    jar = old;
+    return true;
+  }
+  return false;
+}

@@ -1,6 +1,7 @@
 // BDReader/source/ModuleDirectory.h: the directory of bluray.dll (SECURITY_AUDIT.md: CD-06).
 #include <gtest/gtest.h>
 #include "ModuleDirectory.h"
+#include "TempDir.h"
 
 TEST(ModuleDirectory, ParentDirectoryOfAPath)
 {
@@ -48,4 +49,45 @@ TEST(ModuleDirectory, AnAddressOfNoModuleGivesNothing)
 {
   ModuleString dir;
   EXPECT_FALSE(DirectoryOfModuleAt(NULL, dir));
+}
+
+// --- the BD-J jar: libbluray 1.5.1 names it libbluray-j2se-<version>.jar, the old code always set LIBBLURAY_CP to libbluray.jar ---
+
+TEST(BdjJar, TheVersionedJarOfLibbluray15IsFound)
+{
+  TempDir dir;
+  ASSERT_TRUE(dir.Write(L"libbluray-j2se-1.5.1.jar", {1}));
+  ASSERT_TRUE(dir.Write(L"libbluray-awt-j2se-1.5.1.jar", {1}));
+  ModuleString jar;
+  ASSERT_TRUE(FindBdjJar(dir.Path(), jar));
+  EXPECT_EQ(jar, dir.File(L"libbluray-j2se-1.5.1.jar"));    // not the AWT jar, and not "libbluray.jar", which is not there
+}
+
+TEST(BdjJar, TheHighestVersionWins)
+{
+  TempDir dir;
+  ASSERT_TRUE(dir.Write(L"libbluray-j2se-1.3.4.jar", {1}));
+  ASSERT_TRUE(dir.Write(L"libbluray-j2se-1.5.1.jar", {1}));
+  ModuleString jar;
+  ASSERT_TRUE(FindBdjJar(dir.Path(), jar));
+  EXPECT_EQ(jar, dir.File(L"libbluray-j2se-1.5.1.jar"));
+}
+
+TEST(BdjJar, TheOldNameIsTheFallback)
+{
+  TempDir dir;
+  ASSERT_TRUE(dir.Write(L"libbluray.jar", {1}));
+  ModuleString jar;
+  ASSERT_TRUE(FindBdjJar(dir.Path(), jar));
+  EXPECT_EQ(jar, dir.File(L"libbluray.jar"));
+}
+
+TEST(BdjJar, NoJarMeansNoBdj)
+{
+  TempDir dir;
+  ASSERT_TRUE(dir.Write(L"libbluray-awt-j2se-1.5.1.jar", {1}));   // the AWT jar alone is no BD-J library
+  ModuleString jar = L"old";
+  EXPECT_FALSE(FindBdjJar(dir.Path(), jar));
+  EXPECT_TRUE(jar.empty());
+  EXPECT_FALSE(FindBdjJar(dir.File(L"no-such-folder"), jar));
 }

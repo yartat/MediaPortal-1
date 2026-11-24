@@ -149,14 +149,23 @@ bool CLibBlurayWrapper::Initialize()
     return false;
   }
 
-  const ModuleString jar = _T("LIBBLURAY_CP=") + directory + _T("\\libbluray.jar");
-
-  if (_tputenv(jar.c_str()) != 0)
+  // The BD-J jar is libbluray-j2se-<version>.jar since libbluray 1.3; a name that is not there makes BD-J fail (CD-06 follow-up)
+  ModuleString bdjJar;
+  if (FindBdjJar(directory, bdjJar))
   {
-    DWORD error = GetLastError();
-    LogDebug("Failed to set LIBBLURAY_CP environment variable: %d", (int)error);
+    const ModuleString classPath = _T("LIBBLURAY_CP=") + bdjJar;
 
-    return false;
+    if (_tputenv(classPath.c_str()) != 0)
+    {
+      DWORD error = GetLastError();
+      LogDebug("Failed to set LIBBLURAY_CP environment variable: %d", (int)error);
+
+      return false;
+    }
+  }
+  else
+  {
+    LogDebug("CLibBlurayWrapper - no BD-J jar next to the filter, BD-J is not available");
   }
 
   const ModuleString dll = directory + _T("\\bluray.dll");
