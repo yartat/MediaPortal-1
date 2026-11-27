@@ -2810,7 +2810,7 @@ namespace MediaPortal.GUI.Video
           progressDialog.SetLine(1, GUILocalizeStrings.Get(300034) + id); // Downloading grabber:
           progressDialog.SetLine(2, GUILocalizeStrings.Get(300035));
           progressDialog.SetPercentage(percent);
-          percent += 100 / (sectionNodes.Count - 1);
+          percent = (int)((i + 1) * 100L / sectionNodes.Count);
           progressDialog.Progress();
 
           if (DownloadFile(IMDB.ScriptDirectory + @"\" + id, url, Encoding.Default) == false)

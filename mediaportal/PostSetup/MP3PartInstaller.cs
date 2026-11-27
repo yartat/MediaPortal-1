@@ -744,7 +744,7 @@ namespace PostSetup
       {
         if (!e.Message.EndsWith("already exists."))
         {
-          throw e;
+          throw;
         }
       }
     }

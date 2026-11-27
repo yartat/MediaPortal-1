@@ -2594,7 +2594,7 @@ namespace MediaPortal.Configuration.Sections
         _progressDialog.SetLine2("Processing grabbers...");
         _progressDialog.SetPercentage(percent);
         _progressDialog.Count = i + 1;
-        percent += 100 / (sectionNodes.Count - 1);
+        percent = (int)((i + 1) * 100L / sectionNodes.Count);
 
         if (DownloadFile(IMDB.ScriptDirectory + @"\" + id, url, Encoding.Default) == false)
         {

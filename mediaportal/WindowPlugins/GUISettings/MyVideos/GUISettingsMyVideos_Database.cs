@@ -572,7 +572,7 @@ namespace MediaPortal.GUI.Settings
           progressDialog.SetLine(2, GUILocalizeStrings.Get(300035)); // Processing grabbers
           progressDialog.SetPercentage(percent);
           //progressDialog.Count = i + 1;
-          percent += 100 / (sectionNodes.Count - 1);
+          percent = (int)((i + 1) * 100L / sectionNodes.Count);
           progressDialog.Progress();
 
           if (DownloadFile(IMDB.ScriptDirectory + @"\" + id, url, Encoding.Default) == false)
